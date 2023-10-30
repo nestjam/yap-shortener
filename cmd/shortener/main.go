@@ -4,11 +4,11 @@ import (
 	"log"
 	"net/http"
 
-	"github.com/nestjam/yap-shortener/internal/app"
+	shortener "github.com/nestjam/yap-shortener/internal/server"
+	"github.com/nestjam/yap-shortener/internal/store/memory"
 )
 
 func main() {
-	s := app.NewShortenerServer()
-	handler := http.HandlerFunc(s.ServeHTTP)
-	log.Fatal(http.ListenAndServe(":8080", handler))
+	store := memory.New()
+	log.Fatal(http.ListenAndServe(":8080", shortener.New(store)))
 }

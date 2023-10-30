@@ -3,8 +3,6 @@ package app
 import (
 	"net/http"
 	"strings"
-
-	"github.com/nestjam/yap-shortener/internal/store/memory"
 )
 
 const (
@@ -21,9 +19,9 @@ type ShortenerServer struct {
 	store UrlStore
 }
 
-func NewShortenerServer() *ShortenerServer {
+func New(store UrlStore) *ShortenerServer {
 	return &ShortenerServer{
-		store: memory.NewInMemoryUrlStore(),
+		store,
 	}
 }
 

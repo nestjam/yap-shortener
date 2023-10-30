@@ -4,7 +4,7 @@ type InMemoryUrlStore struct {
 	m map[string]string
 }
 
-func NewInMemoryUrlStore() *InMemoryUrlStore {
+func New() *InMemoryUrlStore {
 	return &InMemoryUrlStore{
 		m: map[string]string{
 			"EwHXdJfB": "https://practicum.yandex.ru/",
