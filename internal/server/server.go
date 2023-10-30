@@ -20,6 +20,7 @@ type ShortenFunc func(id uint32) string
 type UrlStore interface {
 	Get(shortUrl string) (string, error)
 
+	//TODO: Вынести генерацию id в отдельный тип или функцию вне UrlStore
 	Add(url string, shorten ShortenFunc) (string, error)
 }
 
