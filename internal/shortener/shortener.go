@@ -1,5 +1,20 @@
 package shortener
 
+const alphabet = "ynAJfoSgdXHB5VasEMtcbPCr1uNZ4LG723ehWkvwYR6KpxjTm8iQUFqz9D"
+
+var alphabetLen = uint32(len(alphabet))
+
 func Shorten(id uint32) string {
-	panic("ops")
+	letters := []byte{}
+	
+	for {
+		letters = append(letters, alphabet[id % alphabetLen])
+		id /= alphabetLen
+
+		if id == 0 {
+			break
+		}
+	}
+
+	return string(letters)
 }

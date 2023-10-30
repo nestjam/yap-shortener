@@ -1,17 +1,30 @@
 package store
 
+import (
+	"sync"
+
+	"github.com/google/uuid"
+	"github.com/nestjam/yap-shortener/internal/server"
+)
+
 type inMemory struct {
-	m map[string]string
+	m sync.Map
 }
 
 func NewInMemory() *inMemory {
-	return &inMemory{
-		m: map[string]string{
-			"EwHXdJfB": "https://practicum.yandex.ru/",
-		},
-	}
+	return &inMemory{}
 }
 
-func (s *inMemory) Get(key string) string {
-	return s.m[key]
+func (s *inMemory) Get(shortUrl string) (string, error) {
+	url, ok := s.m.Load(shortUrl)
+	if !ok {
+		return "", nil
+	}
+	return url.(string), nil
+}
+
+func (s *inMemory) Add(url string, shorten server.ShortenFunc) (string, error) {
+	shortUrl := shorten(uuid.New().ID())
+	s.m.Store(shortUrl, url)
+	return shortUrl, nil
 }

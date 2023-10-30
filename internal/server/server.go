@@ -1,18 +1,26 @@
 package server
 
 import (
+	"io"
 	"net/http"
 	"strings"
+
+	"github.com/nestjam/yap-shortener/internal/shortener"
 )
 
 const (
 	locationHeader    = "Location"
 	contentTypeHeader = "Content-Type"
 	textPlain         = "text/plain"
+	host = "http://localhost:8080"
 )
 
+type ShortenFunc func(id uint32) string
+
 type UrlStore interface {
-	Get(shortUrl string) string
+	Get(shortUrl string) (string, error)
+
+	Add(url string, shorten ShortenFunc) (string, error)
 }
 
 type ShortenerServer struct {
@@ -31,26 +39,32 @@ func (s *ShortenerServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	} else if r.Method == http.MethodPost {
 		s.shorten(w, r)
 	} else {
-		http.Error(w, "", http.StatusBadRequest)
+		BadRequest(w,  "")
 	}
 }
 
 func (s *ShortenerServer) get(w http.ResponseWriter, r *http.Request) {
 	var contentType = r.Header.Get(contentTypeHeader)
 	if contentType != textPlain {
-		http.Error(w, "content type is not text/plain", http.StatusBadRequest)
+		BadRequest(w,  "content type is not text/plain")
 		return
 	}
 
 	var path = strings.TrimPrefix(r.URL.Path, "/")
-	if path == "" {
-		http.Error(w, "shortened URL is empty", http.StatusBadRequest)
+	if len(path) == 0 {
+		BadRequest(w,  "shortened URL is empty")
 		return
 	}
 
-	url := s.store.Get(path)
-	if url == "" {
-		http.Error(w, "shortened URL not found", http.StatusBadRequest)
+	url, err := s.store.Get(path)
+
+	if err != nil {
+		BadRequest(w,  err.Error())
+		return
+	}
+
+	if len(url) == 0 {
+		BadRequest(w,  "shortened URL not found")
 		return
 	}
 
@@ -60,11 +74,35 @@ func (s *ShortenerServer) get(w http.ResponseWriter, r *http.Request) {
 func (s *ShortenerServer) shorten(w http.ResponseWriter, r *http.Request) {
 	var contentType = r.Header.Get(contentTypeHeader)
 	if contentType != textPlain {
-		http.Error(w, "content type is not text/plain", http.StatusBadRequest)
+		BadRequest(w,  "content type is not text/plain")
+		return
+	}
+	
+	defer r.Body.Close()
+	body, err := io.ReadAll(r.Body)
+
+	if err != nil {
+		BadRequest(w, err.Error())
+		return
+	}
+
+	if len(body) == 0 {
+		BadRequest(w, "url is empty")
+		return
+	}
+
+	shortUrl, err := s.store.Add(string(body), shortener.Shorten)
+
+	if err != nil {
+		BadRequest(w, err.Error())
 		return
 	}
 
 	w.Header().Set(contentTypeHeader, textPlain)
 	w.WriteHeader(http.StatusCreated)
-	w.Write([]byte("http://localhost:8080/EwHXdJfB"))
+	w.Write([]byte(host + "/" + shortUrl))
+}
+
+func BadRequest(w http.ResponseWriter, err string){
+	http.Error(w, err, http.StatusBadRequest)
 }

@@ -1,6 +1,10 @@
 package shortener
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+)
 
 func TestShorten(t *testing.T) {
 	type args struct {
@@ -11,13 +15,41 @@ func TestShorten(t *testing.T) {
 		args args
 		want string
 	}{
-		// TODO: Add test cases.
+		{
+			want: "y",
+			args: args{
+				id: 0,
+			},
+		},
+		{
+			want: "n",
+			args: args{
+				id: 1,
+			},
+		},
+		{
+			want: "yn",
+			args: args{
+				id: alphabetLen,
+			},
+		},
+		{
+			want: "yyn",
+			args: args{
+				id: alphabetLen*alphabetLen,
+			},
+		},
+		{
+			want: "zyn",
+			args: args{
+				id: alphabetLen*alphabetLen + 55,
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := Shorten(tt.args.id); got != tt.want {
-				t.Errorf("Shorten() = %v, want %v", got, tt.want)
-			}
+			got := Shorten(tt.args.id)
+			assert.Equal(t, tt.want, got)
 		})
 	}
 }

@@ -19,9 +19,16 @@ type testUrlStore struct {
 	m map[string]string
 }
 
-func (t *testUrlStore) Get(shortUrl string) string {
-	return t.m[shortUrl]
+func (t *testUrlStore) Get(shortUrl string) (string, error) {
+	return t.m[shortUrl], nil
 }
+
+func (t *testUrlStore) Add(url string, shorten ShortenFunc) (string, error) {
+	shortUrl := shorten(uint32(len(t.m)))
+	t.m[shortUrl] = url
+	return shortUrl, nil
+}
+
 
 func TestGet(t *testing.T) {
 	t.Run("get url", func(t *testing.T) {
@@ -36,8 +43,7 @@ func TestGet(t *testing.T) {
 				},
 			},
 		}
-		request := httptest.NewRequest(http.MethodGet, "/EwHXdJfB", nil)
-		request.Header.Set(contentTypeHeader, textPlain)
+		request := newGetRequest("EwHXdJfB")
 		response := httptest.NewRecorder()
 
 		sut.get(response, request)
@@ -51,8 +57,7 @@ func TestGet(t *testing.T) {
 			location: "",
 			body:     "shortened URL not found",
 		}
-		request := httptest.NewRequest(http.MethodGet, "/something", nil)
-		request.Header.Set(contentTypeHeader, textPlain)
+		request := newGetRequest("something")
 		response := httptest.NewRecorder()
 		sut := ShortenerServer{
 			store: &testUrlStore{
@@ -71,8 +76,7 @@ func TestGet(t *testing.T) {
 			location: "",
 			body:     "shortened URL is empty",
 		}
-		request := httptest.NewRequest(http.MethodGet, "/", nil)
-		request.Header.Set(contentTypeHeader, textPlain)
+		request := newGetRequest("")
 		response := httptest.NewRecorder()
 		sut := ShortenerServer{
 			store: &testUrlStore{
@@ -112,15 +116,14 @@ func TestShorten(t *testing.T) {
 	t.Run("shorten url", func(t *testing.T) {
 		want := want{
 			code: http.StatusCreated,
-			body: "http://localhost:8080/EwHXdJfB",
+			body: "http://localhost:8080/y",
 		}
 		sut := ShortenerServer{
 			store: &testUrlStore{
 				m: map[string]string{},
 			},
 		}
-		request := httptest.NewRequest(http.MethodPost, "/", strings.NewReader("https://practicum.yandex.ru/"))
-		request.Header.Set(contentTypeHeader, textPlain)
+		request := newShortenRequest("https://practicum.yandex.ru/")
 		response := httptest.NewRecorder()
 
 		sut.shorten(response, request)
@@ -146,6 +149,64 @@ func TestShorten(t *testing.T) {
 
 		assertResponse(t, want, response)
 	})
+
+	t.Run("shorten same url twice", func(t *testing.T) {
+		want := want{
+			code: http.StatusCreated,
+			body: "http://localhost:8080/y",
+		}
+		sut := ShortenerServer{
+			store: &testUrlStore{
+				m: map[string]string{},
+			},
+		}
+		request := newShortenRequest("https://practicum.yandex.ru/")
+		response := httptest.NewRecorder()
+
+		//1
+		sut.shorten(response, request)
+
+		assertResponse(t, want, response)
+
+		want.body = "http://localhost:8080/n"
+		request = newShortenRequest("https://practicum.yandex.ru/")
+		response = httptest.NewRecorder()
+
+		//2
+		sut.shorten(response, request)
+
+		assertResponse(t, want, response)
+	})
+
+	t.Run("url is empty", func(t *testing.T) {
+		want := want{
+			code: http.StatusBadRequest,
+			body: "url is empty",
+		}
+		sut := ShortenerServer{
+			store: &testUrlStore{
+				m: map[string]string{},
+			},
+		}
+		request := newShortenRequest("")
+		response := httptest.NewRecorder()
+
+		sut.shorten(response, request)
+
+		assertResponse(t, want, response)
+	})
+}
+
+func newGetRequest(shortUrl string) *http.Request {
+	r := httptest.NewRequest(http.MethodGet, "/" + shortUrl, nil)
+	r.Header.Set(contentTypeHeader, textPlain)
+	return r
+}
+
+func newShortenRequest(url string) *http.Request {
+	r := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(url))
+	r.Header.Set(contentTypeHeader, textPlain)
+	return r
 }
 
 func assertResponse(t *testing.T, want want, got *httptest.ResponseRecorder) {
