@@ -199,13 +199,13 @@ func TestShorten(t *testing.T) {
 
 func newGetRequest(shortUrl string) *http.Request {
 	r := httptest.NewRequest(http.MethodGet, "/" + shortUrl, nil)
-	r.Header.Set(contentTypeHeader, textPlain)
+	r.Header.Set(contentTypeHeader, "text/plain; charset=utf-8")
 	return r
 }
 
 func newShortenRequest(url string) *http.Request {
 	r := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(url))
-	r.Header.Set(contentTypeHeader, textPlain)
+	r.Header.Set(contentTypeHeader, "text/plain; charset=utf-8")
 	return r
 }
 

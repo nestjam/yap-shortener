@@ -2,6 +2,7 @@ package server
 
 import (
 	"io"
+	"mime"
 	"net/http"
 	"strings"
 
@@ -40,16 +41,15 @@ func (s *ShortenerServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	} else if r.Method == http.MethodPost {
 		s.shorten(w, r)
 	} else {
-		BadRequest(w,  "")
+		BadRequest(w,  "bad request")
 	}
 }
 
 func (s *ShortenerServer) get(w http.ResponseWriter, r *http.Request) {
-	var contentType = r.Header.Get(contentTypeHeader)
-	if contentType != textPlain {
-		BadRequest(w,  "content type is not text/plain")
-		return
-	}
+	// if !HasContentType(r, textPlain) {
+	// 	BadRequest(w,  "content type is not text/plain")
+	// 	return
+	// }
 
 	var path = strings.TrimPrefix(r.URL.Path, "/")
 	if len(path) == 0 {
@@ -73,8 +73,7 @@ func (s *ShortenerServer) get(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *ShortenerServer) shorten(w http.ResponseWriter, r *http.Request) {
-	var contentType = r.Header.Get(contentTypeHeader)
-	if contentType != textPlain {
+	if !HasContentType(r, textPlain) {
 		BadRequest(w,  "content type is not text/plain")
 		return
 	}
@@ -106,4 +105,22 @@ func (s *ShortenerServer) shorten(w http.ResponseWriter, r *http.Request) {
 
 func BadRequest(w http.ResponseWriter, err string){
 	http.Error(w, err, http.StatusBadRequest)
+}
+
+func HasContentType(r *http.Request, mimetype string) bool {
+	contentType := r.Header.Get("Content-type")
+	if contentType == "" {
+		return mimetype == "application/octet-stream"
+	}
+
+	for _, v := range strings.Split(contentType, ",") {
+		t, _, err := mime.ParseMediaType(v)
+		if err != nil {
+			break
+		}
+		if t == mimetype {
+			return true
+		}
+	}
+	return false
 }
