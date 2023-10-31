@@ -48,6 +48,7 @@ func TestGet(t *testing.T) {
 		want := want{
 			code:     http.StatusTemporaryRedirect,
 			location: testURL,
+			body: "<a href=\"https://practicum.yandex.ru/\">Temporary Redirect</a>.\n\n",
 		}
 		testStore := NewTestStore()
 		testStore.m["EwHXdJfB"] = testURL
@@ -66,7 +67,7 @@ func TestGet(t *testing.T) {
 		want := want{
 			code:     http.StatusBadRequest,
 			location: "",
-			body:     "shortened URL is empty",
+			body:     "shortened URL is empty\n",
 		}
 		request := newGetRequest("")
 		response := httptest.NewRecorder()
@@ -82,7 +83,7 @@ func TestGet(t *testing.T) {
 	t.Run("url not found", func(t *testing.T) {
 		want := want{
 			code: http.StatusNotFound,
-			body: "not found",
+			body: "not found\n",
 		}
 		testStore := NewTestStore()
 		sut := ShortenerServer{
@@ -99,7 +100,7 @@ func TestGet(t *testing.T) {
 	t.Run("url not found (in-memory store)", func(t *testing.T) {
 		want := want{
 			code: http.StatusNotFound,
-			body: "not found",
+			body: "not found\n",
 		}
 		testStore := store.NewInMemory()
 		sut := ShortenerServer{
@@ -157,7 +158,7 @@ func TestShorten(t *testing.T) {
 	t.Run("content type is not textplain", func(t *testing.T) {
 		want := want{
 			code: http.StatusBadRequest,
-			body: "content type is not text/plain",
+			body: "content type is not text/plain\n",
 		}
 		sut := ShortenerServer{
 			store: NewTestStore(),
@@ -169,6 +170,7 @@ func TestShorten(t *testing.T) {
 		sut.shorten(response, request)
 
 		assert.Equal(t, want.code, response.Code)
+		assertResponseBody(t, want.body, response)
 	})
 
 	t.Run("shorten same url twice", func(t *testing.T) {
@@ -201,7 +203,7 @@ func TestShorten(t *testing.T) {
 	t.Run("url is empty", func(t *testing.T) {
 		want := want{
 			code: http.StatusBadRequest,
-			body: "url is empty",
+			body: "url is empty\n",
 		}
 		sut := ShortenerServer{
 			store: NewTestStore(),
@@ -212,13 +214,8 @@ func TestShorten(t *testing.T) {
 		sut.shorten(response, request)
 
 		assert.Equal(t, want.code, response.Code)
+		assertResponseBody(t, want.body, response)
 	})
-}
-
-func assertShortenedURL(t *testing.T, stored string, got *httptest.ResponseRecorder) {
-	t.Helper()
-	want := domain + "/" + stored
-	assert.Equal(t, want, strings.TrimSuffix(got.Body.String(), "\n"))
 }
 
 func newGetRequest(shortURL string) *http.Request {
@@ -233,11 +230,20 @@ func newShortenRequest(url string) *http.Request {
 	return r
 }
 
+func assertShortenedURL(t *testing.T, stored string, got *httptest.ResponseRecorder) {
+	t.Helper()
+	want := domain + "/" + stored
+	assert.Equal(t, want, got.Body.String())
+}
+
 func assertGetResponse(t *testing.T, want want, got *httptest.ResponseRecorder) {
 	t.Helper()
 	assert.Equal(t, want.code, got.Code)
 	assert.Equal(t, want.location, got.Header().Get(locationHeader))
-	if want.body != "" {
-		assert.Equal(t, want.body, strings.TrimSuffix(got.Body.String(), "\n"))
-	}
+	assert.Equal(t, want.body, got.Body.String())
+}
+
+func assertResponseBody(t *testing.T, want string, got *httptest.ResponseRecorder){
+	t.Helper()
+	assert.Equal(t, want, got.Body.String())
 }
