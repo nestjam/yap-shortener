@@ -15,8 +15,8 @@ func NewInMemory() *inMemory {
 	return &inMemory{}
 }
 
-func (s *inMemory) Get(shortUrl string) (string, error) {
-	url, ok := s.m.Load(shortUrl)
+func (s *inMemory) Get(shortURL string) (string, error) {
+	url, ok := s.m.Load(shortURL)
 	if !ok {
 		return "", nil
 	}
@@ -24,7 +24,7 @@ func (s *inMemory) Get(shortUrl string) (string, error) {
 }
 
 func (s *inMemory) Add(url string, shorten server.ShortenFunc) (string, error) {
-	shortUrl := shorten(uuid.New().ID())
-	s.m.Store(shortUrl, url)
-	return shortUrl, nil
+	shortURL := shorten(uuid.New().ID())
+	s.m.Store(shortURL, url)
+	return shortURL, nil
 }

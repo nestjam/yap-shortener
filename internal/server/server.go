@@ -18,18 +18,18 @@ const (
 
 type ShortenFunc func(id uint32) string
 
-type UrlStore interface {
-	Get(shortUrl string) (string, error)
+type URLStore interface {
+	Get(shortURL string) (string, error)
 
 	//TODO: Вынести генерацию id в отдельный тип или функцию вне UrlStore
 	Add(url string, shorten ShortenFunc) (string, error)
 }
 
 type ShortenerServer struct {
-	store UrlStore
+	store URLStore
 }
 
-func New(store UrlStore) *ShortenerServer {
+func New(store URLStore) *ShortenerServer {
 	return &ShortenerServer{
 		store,
 	}

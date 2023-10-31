@@ -15,15 +15,15 @@ type want struct {
 	body     string
 }
 
-type testUrlStore struct {
+type testURLStore struct {
 	m map[string]string
 }
 
-func (t *testUrlStore) Get(shortUrl string) (string, error) {
-	return t.m[shortUrl], nil
+func (t *testURLStore) Get(shortURL string) (string, error) {
+	return t.m[shortURL], nil
 }
 
-func (t *testUrlStore) Add(url string, shorten ShortenFunc) (string, error) {
+func (t *testURLStore) Add(url string, shorten ShortenFunc) (string, error) {
 	shortUrl := shorten(uint32(len(t.m)))
 	t.m[shortUrl] = url
 	return shortUrl, nil
@@ -37,7 +37,7 @@ func TestGet(t *testing.T) {
 			location: "https://practicum.yandex.ru/",
 		}
 		sut := ShortenerServer{
-			store: &testUrlStore{
+			store: &testURLStore{
 				m: map[string]string{
 					"EwHXdJfB": "https://practicum.yandex.ru/",
 				},
@@ -60,7 +60,7 @@ func TestGet(t *testing.T) {
 		request := newGetRequest("something")
 		response := httptest.NewRecorder()
 		sut := ShortenerServer{
-			store: &testUrlStore{
+			store: &testURLStore{
 				m: map[string]string{},
 			},
 		}
@@ -79,7 +79,7 @@ func TestGet(t *testing.T) {
 		request := newGetRequest("")
 		response := httptest.NewRecorder()
 		sut := ShortenerServer{
-			store: &testUrlStore{
+			store: &testURLStore{
 				m: map[string]string{},
 			},
 		}
@@ -99,7 +99,7 @@ func TestGet(t *testing.T) {
 		request.Header.Set(contentTypeHeader, "application/json")
 		response := httptest.NewRecorder()
 		sut := ShortenerServer{
-			store: &testUrlStore{
+			store: &testURLStore{
 				m: map[string]string{
 					"123": "abc.com",
 				},
@@ -119,7 +119,7 @@ func TestShorten(t *testing.T) {
 			body: "http://localhost:8080/y",
 		}
 		sut := ShortenerServer{
-			store: &testUrlStore{
+			store: &testURLStore{
 				m: map[string]string{},
 			},
 		}
@@ -137,7 +137,7 @@ func TestShorten(t *testing.T) {
 			body: "content type is not text/plain",
 		}
 		sut := ShortenerServer{
-			store: &testUrlStore{
+			store: &testURLStore{
 				m: map[string]string{},
 			},
 		}
@@ -156,7 +156,7 @@ func TestShorten(t *testing.T) {
 			body: "http://localhost:8080/y",
 		}
 		sut := ShortenerServer{
-			store: &testUrlStore{
+			store: &testURLStore{
 				m: map[string]string{},
 			},
 		}
@@ -184,7 +184,7 @@ func TestShorten(t *testing.T) {
 			body: "url is empty",
 		}
 		sut := ShortenerServer{
-			store: &testUrlStore{
+			store: &testURLStore{
 				m: map[string]string{},
 			},
 		}
@@ -197,8 +197,8 @@ func TestShorten(t *testing.T) {
 	})
 }
 
-func newGetRequest(shortUrl string) *http.Request {
-	r := httptest.NewRequest(http.MethodGet, "/" + shortUrl, nil)
+func newGetRequest(shortURL string) *http.Request {
+	r := httptest.NewRequest(http.MethodGet, "/" + shortURL, nil)
 	r.Header.Set(contentTypeHeader, "text/plain; charset=utf-8")
 	return r
 }
