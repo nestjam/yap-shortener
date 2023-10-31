@@ -91,7 +91,7 @@ func (s *ShortenerServer) shorten(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	shortUrl, err := s.store.Add(string(body), shortener.Shorten)
+	shortURL, err := s.store.Add(string(body), shortener.Shorten)
 
 	if err != nil {
 		BadRequest(w, err.Error())
@@ -100,7 +100,7 @@ func (s *ShortenerServer) shorten(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set(contentTypeHeader, textPlain)
 	w.WriteHeader(http.StatusCreated)
-	w.Write([]byte(host + "/" + shortUrl))
+	w.Write([]byte(host + "/" + shortURL))
 }
 
 func BadRequest(w http.ResponseWriter, err string){

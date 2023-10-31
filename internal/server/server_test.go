@@ -24,9 +24,9 @@ func (t *testURLStore) Get(shortURL string) (string, error) {
 }
 
 func (t *testURLStore) Add(url string, shorten ShortenFunc) (string, error) {
-	shortUrl := shorten(uint32(len(t.m)))
-	t.m[shortUrl] = url
-	return shortUrl, nil
+	shortURL := shorten(uint32(len(t.m)))
+	t.m[shortURL] = url
+	return shortURL, nil
 }
 
 
