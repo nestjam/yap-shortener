@@ -36,7 +36,7 @@ func New(store URLStore) *ShortenerServer {
 
 func (s *ShortenerServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodGet {
-		s.get(w, r)
+		s.redirect(w, r)
 	} else if r.Method == http.MethodPost {
 		s.shorten(w, r)
 	} else {
@@ -44,7 +44,7 @@ func (s *ShortenerServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (s *ShortenerServer) get(w http.ResponseWriter, r *http.Request) {
+func (s *ShortenerServer) redirect(w http.ResponseWriter, r *http.Request) {
 	// По заданию требуется проверка, но в автотестах не устанавливается заголовок
 	// if !HasContentType(r, textPlain) {
 	// 	BadRequest(w,  "content type is not text/plain")

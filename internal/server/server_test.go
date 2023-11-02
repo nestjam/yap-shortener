@@ -43,7 +43,7 @@ func (t *testURLStore) Add(shortURL, url string) {
 	t.lastShortURL = shortURL
 }
 
-func TestGet(t *testing.T) {
+func TestRedirect(t *testing.T) {
 	t.Run("get url", func(t *testing.T) {
 		want := want{
 			code:     http.StatusTemporaryRedirect,
@@ -58,7 +58,7 @@ func TestGet(t *testing.T) {
 		request := newGetRequest("EwHXdJfB")
 		response := httptest.NewRecorder()
 
-		sut.get(response, request)
+		sut.ServeHTTP(response, request)
 
 		assertGetResponse(t, want, response)
 	})
@@ -75,7 +75,7 @@ func TestGet(t *testing.T) {
 			store: NewTestStore(),
 		}
 
-		sut.get(response, request)
+		sut.ServeHTTP(response, request)
 
 		assertGetResponse(t, want, response)
 	})
@@ -92,7 +92,7 @@ func TestGet(t *testing.T) {
 		request := newGetRequest("EwHXdJfB")
 		response := httptest.NewRecorder()
 
-		sut.get(response, request)
+		sut.ServeHTTP(response, request)
 
 		assertGetResponse(t, want, response)
 	})
@@ -109,7 +109,7 @@ func TestGet(t *testing.T) {
 		request := newGetRequest("EwHXdJfB")
 		response := httptest.NewRecorder()
 
-		sut.get(response, request)
+		sut.ServeHTTP(response, request)
 
 		assertGetResponse(t, want, response)
 	})
@@ -131,7 +131,7 @@ func TestGet(t *testing.T) {
 	// 		},
 	// 	}
 
-	// 	sut.get(response, request)
+	// 	sut.ServeHTTP(response, request)
 
 	// 	assertGetResponse(t, want, response)
 	// })
@@ -149,7 +149,7 @@ func TestShorten(t *testing.T) {
 		request := newShortenRequest(testURL)
 		response := httptest.NewRecorder()
 
-		sut.shorten(response, request)
+		sut.ServeHTTP(response, request)
 
 		assert.Equal(t, want.code, response.Code)
 		assertShortenedURL(t, testStore.lastShortURL, response)
@@ -167,7 +167,7 @@ func TestShorten(t *testing.T) {
 		request.Header.Set(contentTypeHeader, "application/json")
 		response := httptest.NewRecorder()
 
-		sut.shorten(response, request)
+		sut.ServeHTTP(response, request)
 
 		assert.Equal(t, want.code, response.Code)
 		assertResponseBody(t, want.body, response)
@@ -185,7 +185,7 @@ func TestShorten(t *testing.T) {
 		response := httptest.NewRecorder()
 
 		//1
-		sut.shorten(response, request)
+		sut.ServeHTTP(response, request)
 
 		assert.Equal(t, want.code, response.Code)
 		assertShortenedURL(t, testStore.lastShortURL, response)
@@ -194,7 +194,7 @@ func TestShorten(t *testing.T) {
 		response = httptest.NewRecorder()
 
 		//2
-		sut.shorten(response, request)
+		sut.ServeHTTP(response, request)
 
 		assert.Equal(t, want.code, response.Code)
 		assertShortenedURL(t, testStore.lastShortURL, response)
@@ -211,10 +211,25 @@ func TestShorten(t *testing.T) {
 		request := newShortenRequest("")
 		response := httptest.NewRecorder()
 
-		sut.shorten(response, request)
+		sut.ServeHTTP(response, request)
 
 		assert.Equal(t, want.code, response.Code)
 		assertResponseBody(t, want.body, response)
+	})
+}
+
+func TestServeHTTP(t *testing.T) {
+	t.Run("put method not supported", func(t *testing.T) {
+		want := http.StatusBadRequest
+		sut := ShortenerServer{
+			store: NewTestStore(),
+		}
+		request := newPutRequest(testURL)
+		response := httptest.NewRecorder()
+
+		sut.ServeHTTP(response, request)
+
+		assert.Equal(t, want, response.Code)
 	})
 }
 
@@ -226,6 +241,12 @@ func newGetRequest(shortURL string) *http.Request {
 
 func newShortenRequest(url string) *http.Request {
 	r := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(url))
+	r.Header.Set(contentTypeHeader, "text/plain; charset=utf-8")
+	return r
+}
+
+func newPutRequest(url string) *http.Request {
+	r := httptest.NewRequest(http.MethodPut, "/", strings.NewReader(url))
 	r.Header.Set(contentTypeHeader, "text/plain; charset=utf-8")
 	return r
 }
