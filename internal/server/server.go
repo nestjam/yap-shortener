@@ -40,7 +40,7 @@ func (s *ShortenerServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	} else if r.Method == http.MethodPost {
 		s.shorten(w, r)
 	} else {
-		BadRequest(w, "bad request")
+		badRequest(w, "bad request")
 	}
 }
 
@@ -53,14 +53,14 @@ func (s *ShortenerServer) redirect(w http.ResponseWriter, r *http.Request) {
 
 	var path = strings.TrimPrefix(r.URL.Path, "/")
 	if len(path) == 0 {
-		BadRequest(w, "shortened URL is empty")
+		badRequest(w, "shortened URL is empty")
 		return
 	}
 
 	url, err := s.store.Get(path)
 
 	if err == model.ErrNotFound {
-		NotFound(w, err.Error())
+		notFound(w, err.Error())
 		return
 	}
 
@@ -68,8 +68,8 @@ func (s *ShortenerServer) redirect(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *ShortenerServer) shorten(w http.ResponseWriter, r *http.Request) {
-	if !HasContentType(r, textPlain) {
-		BadRequest(w, "content type is not text/plain")
+	if !hasContentType(r, textPlain) {
+		badRequest(w, "content type is not text/plain")
 		return
 	}
 
@@ -77,12 +77,12 @@ func (s *ShortenerServer) shorten(w http.ResponseWriter, r *http.Request) {
 	r.Body.Close()
 
 	if err != nil {
-		BadRequest(w, err.Error())
+		badRequest(w, err.Error())
 		return
 	}
 
 	if len(body) == 0 {
-		BadRequest(w, "url is empty")
+		badRequest(w, "url is empty")
 		return
 	}
 
@@ -94,15 +94,15 @@ func (s *ShortenerServer) shorten(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte(domain + "/" + shortURL))
 }
 
-func BadRequest(w http.ResponseWriter, err string) {
+func badRequest(w http.ResponseWriter, err string) {
 	http.Error(w, err, http.StatusBadRequest)
 }
 
-func NotFound(w http.ResponseWriter, err string) {
+func notFound(w http.ResponseWriter, err string) {
 	http.Error(w, err, http.StatusNotFound)
 }
 
-func HasContentType(r *http.Request, mimetype string) bool {
+func hasContentType(r *http.Request, mimetype string) bool {
 	contentType := r.Header.Get("Content-type")
 	if contentType == "" {
 		return mimetype == "application/octet-stream"
