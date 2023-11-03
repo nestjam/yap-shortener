@@ -9,6 +9,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/nestjam/yap-shortener/internal/model"
 	"github.com/nestjam/yap-shortener/internal/shortener"
+	"github.com/go-chi/chi/v5"
 )
 
 const (
@@ -24,40 +25,35 @@ type URLStore interface {
 	Add(shortURL, url string)
 }
 
-type ShortenerServer struct {
+type Server struct {
 	store URLStore
+	router chi.Router
 }
 
-func New(store URLStore) *ShortenerServer {
-	return &ShortenerServer{
+func New(store URLStore) *Server {
+	router := chi.NewRouter()
+	s := &Server{
 		store,
+		router,
 	}
+	router.Get("/{key}", s.redirect)
+	router.Post("/", s.shorten)
+	return s;
 }
 
-func (s *ShortenerServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	if r.Method == http.MethodGet {
-		s.redirect(w, r)
-	} else if r.Method == http.MethodPost {
-		s.shorten(w, r)
-	} else {
-		badRequest(w, "bad request")
-	}
+func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	s.router.ServeHTTP(w, r)
 }
 
-func (s *ShortenerServer) redirect(w http.ResponseWriter, r *http.Request) {
+func (s *Server) redirect(w http.ResponseWriter, r *http.Request) {
 	// По заданию требуется проверка, но в автотестах не устанавливается заголовок
 	// if !HasContentType(r, textPlain) {
 	// 	BadRequest(w,  "content type is not text/plain")
 	// 	return
 	// }
 
-	var path = strings.TrimPrefix(r.URL.Path, "/")
-	if len(path) == 0 {
-		badRequest(w, "shortened URL is empty")
-		return
-	}
-
-	url, err := s.store.Get(path)
+	key := chi.URLParam(r, "key")
+	url, err := s.store.Get(key)
 
 	if err == model.ErrNotFound {
 		notFound(w, err.Error())
@@ -67,7 +63,7 @@ func (s *ShortenerServer) redirect(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, url, http.StatusTemporaryRedirect)
 }
 
-func (s *ShortenerServer) shorten(w http.ResponseWriter, r *http.Request) {
+func (s *Server) shorten(w http.ResponseWriter, r *http.Request) {
 	if !hasContentType(r, textPlain) {
 		badRequest(w, "content type is not text/plain")
 		return

@@ -52,9 +52,7 @@ func TestRedirect(t *testing.T) {
 		}
 		testStore := NewTestStore()
 		testStore.m["EwHXdJfB"] = testURL
-		sut := ShortenerServer{
-			store: testStore,
-		}
+		sut := New(testStore)
 		request := newGetRequest("EwHXdJfB")
 		response := httptest.NewRecorder()
 
@@ -63,17 +61,15 @@ func TestRedirect(t *testing.T) {
 		assertGetResponse(t, want, response)
 	})
 
-	t.Run("shortened url is empty", func(t *testing.T) {
+	t.Run("path is empty", func(t *testing.T) {
 		want := want{
-			code:     http.StatusBadRequest,
+			code:     http.StatusMethodNotAllowed,
 			location: "",
-			body:     "shortened URL is empty\n",
 		}
 		request := newGetRequest("")
 		response := httptest.NewRecorder()
-		sut := ShortenerServer{
-			store: NewTestStore(),
-		}
+		testStore := NewTestStore()
+		sut := New(testStore)
 
 		sut.ServeHTTP(response, request)
 
@@ -86,9 +82,7 @@ func TestRedirect(t *testing.T) {
 			body: "not found\n",
 		}
 		testStore := NewTestStore()
-		sut := ShortenerServer{
-			store: testStore,
-		}
+		sut := New(testStore)
 		request := newGetRequest("EwHXdJfB")
 		response := httptest.NewRecorder()
 
@@ -103,9 +97,7 @@ func TestRedirect(t *testing.T) {
 			body: "not found\n",
 		}
 		testStore := store.NewInMemory()
-		sut := ShortenerServer{
-			store: testStore,
-		}
+		sut := New(testStore)
 		request := newGetRequest("EwHXdJfB")
 		response := httptest.NewRecorder()
 
@@ -143,9 +135,7 @@ func TestShorten(t *testing.T) {
 			code: http.StatusCreated,
 		}
 		testStore := NewTestStore()
-		sut := ShortenerServer{
-			store: testStore,
-		}
+		sut := New(testStore)
 		request := newShortenRequest(testURL)
 		response := httptest.NewRecorder()
 
@@ -160,9 +150,8 @@ func TestShorten(t *testing.T) {
 			code: http.StatusBadRequest,
 			body: "content type is not text/plain\n",
 		}
-		sut := ShortenerServer{
-			store: NewTestStore(),
-		}
+		testStore := NewTestStore()
+		sut := New(testStore)
 		request := newShortenRequest(testURL)
 		request.Header.Set(contentTypeHeader, "application/json")
 		response := httptest.NewRecorder()
@@ -178,9 +167,7 @@ func TestShorten(t *testing.T) {
 			code: http.StatusCreated,
 		}
 		testStore := NewTestStore()
-		sut := ShortenerServer{
-			store: testStore,
-		}
+		sut := New(testStore)
 		request := newShortenRequest(testURL)
 		response := httptest.NewRecorder()
 
@@ -205,9 +192,8 @@ func TestShorten(t *testing.T) {
 			code: http.StatusBadRequest,
 			body: "url is empty\n",
 		}
-		sut := ShortenerServer{
-			store: NewTestStore(),
-		}
+		testStore := NewTestStore()
+		sut := New(testStore)
 		request := newShortenRequest("")
 		response := httptest.NewRecorder()
 
@@ -219,11 +205,10 @@ func TestShorten(t *testing.T) {
 }
 
 func TestServeHTTP(t *testing.T) {
-	t.Run("put method not supported", func(t *testing.T) {
-		want := http.StatusBadRequest
-		sut := ShortenerServer{
-			store: NewTestStore(),
-		}
+	t.Run("put method not allowed", func(t *testing.T) {
+		want := http.StatusMethodNotAllowed
+		testStore := NewTestStore()
+		sut := New(testStore)
 		request := newPutRequest(testURL)
 		response := httptest.NewRecorder()
 
