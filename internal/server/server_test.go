@@ -44,7 +44,7 @@ func (t *testURLStore) Add(shortURL, url string) {
 }
 
 func TestRedirect(t *testing.T) {
-	t.Run("get url", func(t *testing.T) {
+	t.Run("redirect to stored url", func(t *testing.T) {
 		want := want{
 			code:     http.StatusTemporaryRedirect,
 			location: testURL,
@@ -105,28 +105,6 @@ func TestRedirect(t *testing.T) {
 
 		assertGetResponse(t, want, response)
 	})
-
-	// t.Run("content type is not textplain", func(t *testing.T) {
-	// 	want := want{
-	// 		code:     http.StatusBadRequest,
-	// 		location: "",
-	// 		body:     "content type is not text/plain",
-	// 	}
-	// 	request := httptest.NewRequest(http.MethodGet, "/123", nil)
-	// 	request.Header.Set(contentTypeHeader, "application/json")
-	// 	response := httptest.NewRecorder()
-	// 	sut := ShortenerServer{
-	// 		store: &testURLStore{
-	// 			m: map[string]string{
-	// 				"123": "abc.com",
-	// 			},
-	// 		},
-	// 	}
-
-	// 	sut.ServeHTTP(response, request)
-
-	// 	assertGetResponse(t, want, response)
-	// })
 }
 
 func TestShorten(t *testing.T) {
@@ -145,10 +123,9 @@ func TestShorten(t *testing.T) {
 		assertShortenedURL(t, testStore.lastShortURL, response)
 	})
 
-	t.Run("content type is not textplain", func(t *testing.T) {
+	t.Run("content type is not text/plain", func(t *testing.T) {
 		want := want{
-			code: http.StatusBadRequest,
-			body: "content type is not text/plain\n",
+			code: http.StatusUnsupportedMediaType,
 		}
 		testStore := NewTestStore()
 		sut := New(testStore)

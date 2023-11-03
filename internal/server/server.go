@@ -2,14 +2,13 @@ package server
 
 import (
 	"io"
-	"mime"
 	"net/http"
-	"strings"
 
+	"github.com/go-chi/chi/middleware"
+	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"github.com/nestjam/yap-shortener/internal/model"
 	"github.com/nestjam/yap-shortener/internal/shortener"
-	"github.com/go-chi/chi/v5"
 )
 
 const (
@@ -31,13 +30,18 @@ type Server struct {
 }
 
 func New(store URLStore) *Server {
-	router := chi.NewRouter()
+	r := chi.NewRouter()
 	s := &Server{
 		store,
-		router,
+		r,
 	}
-	router.Get("/{key}", s.redirect)
-	router.Post("/", s.shorten)
+
+	r.Use(middleware.Logger)
+	r.Use(middleware.AllowContentType("text/plain"))
+
+	r.Get("/{key}", s.redirect)
+	r.Post("/", s.shorten)
+
 	return s;
 }
 
@@ -46,12 +50,6 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) redirect(w http.ResponseWriter, r *http.Request) {
-	// По заданию требуется проверка, но в автотестах не устанавливается заголовок
-	// if !HasContentType(r, textPlain) {
-	// 	BadRequest(w,  "content type is not text/plain")
-	// 	return
-	// }
-
 	key := chi.URLParam(r, "key")
 	url, err := s.store.Get(key)
 
@@ -64,11 +62,6 @@ func (s *Server) redirect(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) shorten(w http.ResponseWriter, r *http.Request) {
-	if !hasContentType(r, textPlain) {
-		badRequest(w, "content type is not text/plain")
-		return
-	}
-
 	body, err := io.ReadAll(r.Body)
 	r.Body.Close()
 
@@ -96,22 +89,4 @@ func badRequest(w http.ResponseWriter, err string) {
 
 func notFound(w http.ResponseWriter, err string) {
 	http.Error(w, err, http.StatusNotFound)
-}
-
-func hasContentType(r *http.Request, mimetype string) bool {
-	contentType := r.Header.Get("Content-type")
-	if contentType == "" {
-		return mimetype == "application/octet-stream"
-	}
-
-	for _, v := range strings.Split(contentType, ",") {
-		t, _, err := mime.ParseMediaType(v)
-		if err != nil {
-			break
-		}
-		if t == mimetype {
-			return true
-		}
-	}
-	return false
 }
