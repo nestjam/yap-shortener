@@ -3,8 +3,7 @@ package store
 import (
 	"sync"
 
-	"github.com/google/uuid"
-	"github.com/nestjam/yap-shortener/internal/server"
+	"github.com/nestjam/yap-shortener/internal/model"
 )
 
 type inMemory struct {
@@ -18,13 +17,11 @@ func NewInMemory() *inMemory {
 func (s *inMemory) Get(shortURL string) (string, error) {
 	url, ok := s.m.Load(shortURL)
 	if !ok {
-		return "", nil
+		return "", model.ErrNotFound
 	}
 	return url.(string), nil
 }
 
-func (s *inMemory) Add(url string, shorten server.ShortenFunc) (string, error) {
-	shortURL := shorten(uuid.New().ID())
+func (s *inMemory) Add(shortURL, url string) {
 	s.m.Store(shortURL, url)
-	return shortURL, nil
 }

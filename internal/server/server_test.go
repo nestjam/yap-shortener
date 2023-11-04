@@ -6,7 +6,14 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/nestjam/yap-shortener/internal/model"
+	"github.com/nestjam/yap-shortener/internal/store"
 	"github.com/stretchr/testify/assert"
+)
+
+const (
+testURL = "https://practicum.yandex.ru/"
+baseURL = "http://localhost:8080"
 )
 
 type want struct {
@@ -16,99 +23,90 @@ type want struct {
 }
 
 type testURLStore struct {
-	m map[string]string
+	m            map[string]string
+	lastShortURL string
+}
+
+func NewTestStore() *testURLStore {
+	return &testURLStore{
+		m: map[string]string{},
+	}
 }
 
 func (t *testURLStore) Get(shortURL string) (string, error) {
-	return t.m[shortURL], nil
+	v, ok := t.m[shortURL]
+	if !ok {
+		return "", model.ErrNotFound
+	}
+	return v, nil
 }
 
-func (t *testURLStore) Add(url string, shorten ShortenFunc) (string, error) {
-	shortURL := shorten(uint32(len(t.m)))
+func (t *testURLStore) Add(shortURL, url string) {
 	t.m[shortURL] = url
-	return shortURL, nil
+	t.lastShortURL = shortURL
 }
 
-
-func TestGet(t *testing.T) {
-	t.Run("get url", func(t *testing.T) {
+func TestRedirect(t *testing.T) {
+	t.Run("redirect to stored url", func(t *testing.T) {
 		want := want{
 			code:     http.StatusTemporaryRedirect,
-			location: "https://practicum.yandex.ru/",
+			location: testURL,
+			body: "<a href=\"https://practicum.yandex.ru/\">Temporary Redirect</a>.\n\n",
 		}
-		sut := ShortenerServer{
-			store: &testURLStore{
-				m: map[string]string{
-					"EwHXdJfB": "https://practicum.yandex.ru/",
-				},
-			},
-		}
+		testStore := NewTestStore()
+		testStore.m["EwHXdJfB"] = testURL
+		sut := New(testStore, baseURL)
 		request := newGetRequest("EwHXdJfB")
 		response := httptest.NewRecorder()
 
-		sut.get(response, request)
+		sut.ServeHTTP(response, request)
 
-		assertResponse(t, want, response)
+		assertGetResponse(t, want, response)
 	})
 
-	t.Run("url not found by shortened url", func(t *testing.T) {
+	t.Run("path is empty", func(t *testing.T) {
 		want := want{
-			code:     http.StatusBadRequest,
+			code:     http.StatusMethodNotAllowed,
 			location: "",
-			body:     "shortened URL not found",
-		}
-		request := newGetRequest("something")
-		response := httptest.NewRecorder()
-		sut := ShortenerServer{
-			store: &testURLStore{
-				m: map[string]string{},
-			},
-		}
-
-		sut.get(response, request)
-
-		assertResponse(t, want, response)
-	})
-
-	t.Run("shortened url is empty", func(t *testing.T) {
-		want := want{
-			code:     http.StatusBadRequest,
-			location: "",
-			body:     "shortened URL is empty",
 		}
 		request := newGetRequest("")
 		response := httptest.NewRecorder()
-		sut := ShortenerServer{
-			store: &testURLStore{
-				m: map[string]string{},
-			},
-		}
+		testStore := NewTestStore()
+		sut := New(testStore, baseURL)
 
-		sut.get(response, request)
+		sut.ServeHTTP(response, request)
 
-		assertResponse(t, want, response)
+		assertGetResponse(t, want, response)
 	})
 
-	t.Run("content type is not textplain", func(t *testing.T) {
+	t.Run("url not found", func(t *testing.T) {
 		want := want{
-			code:     http.StatusBadRequest,
-			location: "",
-			body:     "content type is not text/plain",
+			code: http.StatusNotFound,
+			body: "not found\n",
 		}
-		request := httptest.NewRequest(http.MethodGet, "/123", nil)
-		request.Header.Set(contentTypeHeader, "application/json")
+		testStore := NewTestStore()
+		sut := New(testStore, baseURL)
+		request := newGetRequest("EwHXdJfB")
 		response := httptest.NewRecorder()
-		sut := ShortenerServer{
-			store: &testURLStore{
-				m: map[string]string{
-					"123": "abc.com",
-				},
-			},
+
+		sut.ServeHTTP(response, request)
+
+		assertGetResponse(t, want, response)
+	})
+
+	t.Run("url not found (in-memory store)", func(t *testing.T) {
+		want := want{
+			code: http.StatusNotFound,
+			body: "not found\n",
 		}
+		testStore := store.NewInMemory()
+		sut := New(testStore, baseURL)
+		request := newGetRequest("EwHXdJfB")
+		response := httptest.NewRecorder()
 
-		sut.get(response, request)
+		sut.ServeHTTP(response, request)
 
-		assertResponse(t, want, response)
+		assertGetResponse(t, want, response)
 	})
 }
 
@@ -116,84 +114,87 @@ func TestShorten(t *testing.T) {
 	t.Run("shorten url", func(t *testing.T) {
 		want := want{
 			code: http.StatusCreated,
-			body: "http://localhost:8080/y",
 		}
-		sut := ShortenerServer{
-			store: &testURLStore{
-				m: map[string]string{},
-			},
-		}
-		request := newShortenRequest("https://practicum.yandex.ru/")
+		testStore := NewTestStore()
+		sut := New(testStore, baseURL)
+		request := newShortenRequest(testURL)
 		response := httptest.NewRecorder()
 
-		sut.shorten(response, request)
+		sut.ServeHTTP(response, request)
 
-		assertResponse(t, want, response)
+		assert.Equal(t, want.code, response.Code)
+		assertShortenedURL(t, testStore.lastShortURL, response)
 	})
 
-	t.Run("content type is not textplain", func(t *testing.T) {
+	t.Run("content type is not text/plain", func(t *testing.T) {
 		want := want{
-			code: http.StatusBadRequest,
-			body: "content type is not text/plain",
+			code: http.StatusUnsupportedMediaType,
 		}
-		sut := ShortenerServer{
-			store: &testURLStore{
-				m: map[string]string{},
-			},
-		}
-		request := httptest.NewRequest(http.MethodPost, "/", strings.NewReader("https://practicum.yandex.ru/"))
+		testStore := NewTestStore()
+		sut := New(testStore, baseURL)
+		request := newShortenRequest(testURL)
 		request.Header.Set(contentTypeHeader, "application/json")
 		response := httptest.NewRecorder()
 
-		sut.shorten(response, request)
+		sut.ServeHTTP(response, request)
 
-		assertResponse(t, want, response)
+		assert.Equal(t, want.code, response.Code)
+		assertResponseBody(t, want.body, response)
 	})
 
 	t.Run("shorten same url twice", func(t *testing.T) {
 		want := want{
 			code: http.StatusCreated,
-			body: "http://localhost:8080/y",
 		}
-		sut := ShortenerServer{
-			store: &testURLStore{
-				m: map[string]string{},
-			},
-		}
-		request := newShortenRequest("https://practicum.yandex.ru/")
+		testStore := NewTestStore()
+		sut := New(testStore, baseURL)
+		request := newShortenRequest(testURL)
 		response := httptest.NewRecorder()
 
 		//1
-		sut.shorten(response, request)
+		sut.ServeHTTP(response, request)
 
-		assertResponse(t, want, response)
+		assert.Equal(t, want.code, response.Code)
+		assertShortenedURL(t, testStore.lastShortURL, response)
 
-		want.body = "http://localhost:8080/n"
-		request = newShortenRequest("https://practicum.yandex.ru/")
+		request = newShortenRequest(testURL)
 		response = httptest.NewRecorder()
 
 		//2
-		sut.shorten(response, request)
+		sut.ServeHTTP(response, request)
 
-		assertResponse(t, want, response)
+		assert.Equal(t, want.code, response.Code)
+		assertShortenedURL(t, testStore.lastShortURL, response)
 	})
 
 	t.Run("url is empty", func(t *testing.T) {
 		want := want{
 			code: http.StatusBadRequest,
-			body: "url is empty",
+			body: "url is empty\n",
 		}
-		sut := ShortenerServer{
-			store: &testURLStore{
-				m: map[string]string{},
-			},
-		}
+		testStore := NewTestStore()
+		sut := New(testStore, baseURL)
 		request := newShortenRequest("")
 		response := httptest.NewRecorder()
 
-		sut.shorten(response, request)
+		sut.ServeHTTP(response, request)
 
-		assertResponse(t, want, response)
+		assert.Equal(t, want.code, response.Code)
+		assertResponseBody(t, want.body, response)
+	})
+}
+
+func TestServeHTTP(t *testing.T) {
+	t.Run("put method not allowed", func(t *testing.T) {
+		want := http.StatusMethodNotAllowed
+		testStore := NewTestStore()
+		sut := New(testStore, baseURL)
+		request := newPutRequest(testURL)
+		response := httptest.NewRecorder()
+
+		sut.ServeHTTP(response, request)
+
+		assert.Equal(t, want, response.Code)
 	})
 }
 
@@ -209,11 +210,26 @@ func newShortenRequest(url string) *http.Request {
 	return r
 }
 
-func assertResponse(t *testing.T, want want, got *httptest.ResponseRecorder) {
+func newPutRequest(url string) *http.Request {
+	r := httptest.NewRequest(http.MethodPut, "/", strings.NewReader(url))
+	r.Header.Set(contentTypeHeader, "text/plain; charset=utf-8")
+	return r
+}
+
+func assertShortenedURL(t *testing.T, stored string, got *httptest.ResponseRecorder) {
+	t.Helper()
+	want := baseURL + "/" + stored
+	assert.Equal(t, want, got.Body.String())
+}
+
+func assertGetResponse(t *testing.T, want want, got *httptest.ResponseRecorder) {
 	t.Helper()
 	assert.Equal(t, want.code, got.Code)
 	assert.Equal(t, want.location, got.Header().Get(locationHeader))
-	if want.body != "" {
-		assert.Equal(t, want.body, strings.TrimSuffix(got.Body.String(), "\n"))
-	}
+	assert.Equal(t, want.body, got.Body.String())
+}
+
+func assertResponseBody(t *testing.T, want string, got *httptest.ResponseRecorder){
+	t.Helper()
+	assert.Equal(t, want, got.Body.String())
 }
