@@ -11,7 +11,10 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-const testURL = "https://practicum.yandex.ru/"
+const (
+testURL = "https://practicum.yandex.ru/"
+baseURL = "http://localhost:8080"
+)
 
 type want struct {
 	location string
@@ -52,7 +55,7 @@ func TestRedirect(t *testing.T) {
 		}
 		testStore := NewTestStore()
 		testStore.m["EwHXdJfB"] = testURL
-		sut := New(testStore)
+		sut := New(testStore, baseURL)
 		request := newGetRequest("EwHXdJfB")
 		response := httptest.NewRecorder()
 
@@ -69,7 +72,7 @@ func TestRedirect(t *testing.T) {
 		request := newGetRequest("")
 		response := httptest.NewRecorder()
 		testStore := NewTestStore()
-		sut := New(testStore)
+		sut := New(testStore, baseURL)
 
 		sut.ServeHTTP(response, request)
 
@@ -82,7 +85,7 @@ func TestRedirect(t *testing.T) {
 			body: "not found\n",
 		}
 		testStore := NewTestStore()
-		sut := New(testStore)
+		sut := New(testStore, baseURL)
 		request := newGetRequest("EwHXdJfB")
 		response := httptest.NewRecorder()
 
@@ -97,7 +100,7 @@ func TestRedirect(t *testing.T) {
 			body: "not found\n",
 		}
 		testStore := store.NewInMemory()
-		sut := New(testStore)
+		sut := New(testStore, baseURL)
 		request := newGetRequest("EwHXdJfB")
 		response := httptest.NewRecorder()
 
@@ -113,7 +116,7 @@ func TestShorten(t *testing.T) {
 			code: http.StatusCreated,
 		}
 		testStore := NewTestStore()
-		sut := New(testStore)
+		sut := New(testStore, baseURL)
 		request := newShortenRequest(testURL)
 		response := httptest.NewRecorder()
 
@@ -128,7 +131,7 @@ func TestShorten(t *testing.T) {
 			code: http.StatusUnsupportedMediaType,
 		}
 		testStore := NewTestStore()
-		sut := New(testStore)
+		sut := New(testStore, baseURL)
 		request := newShortenRequest(testURL)
 		request.Header.Set(contentTypeHeader, "application/json")
 		response := httptest.NewRecorder()
@@ -144,7 +147,7 @@ func TestShorten(t *testing.T) {
 			code: http.StatusCreated,
 		}
 		testStore := NewTestStore()
-		sut := New(testStore)
+		sut := New(testStore, baseURL)
 		request := newShortenRequest(testURL)
 		response := httptest.NewRecorder()
 
@@ -170,7 +173,7 @@ func TestShorten(t *testing.T) {
 			body: "url is empty\n",
 		}
 		testStore := NewTestStore()
-		sut := New(testStore)
+		sut := New(testStore, baseURL)
 		request := newShortenRequest("")
 		response := httptest.NewRecorder()
 
@@ -185,7 +188,7 @@ func TestServeHTTP(t *testing.T) {
 	t.Run("put method not allowed", func(t *testing.T) {
 		want := http.StatusMethodNotAllowed
 		testStore := NewTestStore()
-		sut := New(testStore)
+		sut := New(testStore, baseURL)
 		request := newPutRequest(testURL)
 		response := httptest.NewRecorder()
 
@@ -215,7 +218,7 @@ func newPutRequest(url string) *http.Request {
 
 func assertShortenedURL(t *testing.T, stored string, got *httptest.ResponseRecorder) {
 	t.Helper()
-	want := domain + "/" + stored
+	want := baseURL + "/" + stored
 	assert.Equal(t, want, got.Body.String())
 }
 

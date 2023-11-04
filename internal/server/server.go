@@ -15,7 +15,6 @@ const (
 	locationHeader    = "Location"
 	contentTypeHeader = "Content-Type"
 	textPlain         = "text/plain"
-	domain            = "http://localhost:8080"
 )
 
 type URLStore interface {
@@ -27,13 +26,15 @@ type URLStore interface {
 type Server struct {
 	store URLStore
 	router chi.Router
+	baseURL string
 }
 
-func New(store URLStore) *Server {
+func New(store URLStore, baseURL string) *Server {
 	r := chi.NewRouter()
 	s := &Server{
 		store,
 		r,
+		baseURL,
 	}
 
 	r.Use(middleware.Logger)
@@ -80,7 +81,7 @@ func (s *Server) shorten(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set(contentTypeHeader, textPlain)
 	w.WriteHeader(http.StatusCreated)
-	w.Write([]byte(domain + "/" + shortURL))
+	w.Write([]byte(s.baseURL + "/" + shortURL))
 }
 
 func badRequest(w http.ResponseWriter, err string) {
