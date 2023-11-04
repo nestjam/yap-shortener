@@ -3,22 +3,40 @@ package config
 import "flag"
 
 type config struct {
-	RunAddr  string
-	BaseAddr string
+	ServerAddress string
+	BaseURL       string
 }
 
 const (
-	defaultRunAddr  = ":8080"
-	defaultBaseAddr = "http://localhost:8080"
+	defaultServerAddr = ":8080"
+	defaultBaseURL    = "http://localhost:8080"
 )
 
-func Parse(args []string) config {
-	var config = config{}
+func New() config {
+	return config{
+		ServerAddress: defaultServerAddr,
+		BaseURL:       defaultBaseURL,
+	}
+}
 
+func (conf config) FromArgs(args []string) config {
 	flagSet := flag.NewFlagSet("", flag.PanicOnError)
-	flagSet.StringVar(&config.RunAddr, "a", defaultRunAddr, "run address")
-	flagSet.StringVar(&config.BaseAddr, "b", defaultBaseAddr, "base address")
+	flagSet.StringVar(&conf.ServerAddress, "a", conf.ServerAddress, "server address")
+	flagSet.StringVar(&conf.BaseURL, "b", conf.BaseURL, "base URL")
 	_ = flagSet.Parse(args[1:]) // exclude command name
-	
-	return config
+	return conf
+}
+
+type Environment interface {
+	LookupEnv(key string) (string, bool)
+}
+
+func (conf config) FromEnv(env Environment) config {
+	if servAddr, ok := env.LookupEnv("SERVER_ADDRESS"); ok {
+		conf.ServerAddress = servAddr
+	}
+	if baseURL, ok := env.LookupEnv("BASE_URL"); ok {
+		conf.BaseURL = baseURL
+	}
+	return conf
 }
