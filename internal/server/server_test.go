@@ -12,8 +12,8 @@ import (
 )
 
 const (
-testURL = "https://practicum.yandex.ru/"
-baseURL = "http://localhost:8080"
+	testURL = "https://practicum.yandex.ru/"
+	baseURL = "http://localhost:8080"
 )
 
 type want struct {

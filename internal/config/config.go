@@ -12,6 +12,10 @@ const (
 	defaultBaseURL    = "http://localhost:8080"
 )
 
+type Environment interface {
+	LookupEnv(key string) (string, bool)
+}
+
 func New() config {
 	return config{
 		ServerAddress: defaultServerAddr,
@@ -25,10 +29,6 @@ func (conf config) FromArgs(args []string) config {
 	flagSet.StringVar(&conf.BaseURL, "b", conf.BaseURL, "base URL")
 	_ = flagSet.Parse(args[1:]) // exclude command name
 	return conf
-}
-
-type Environment interface {
-	LookupEnv(key string) (string, bool)
 }
 
 func (conf config) FromEnv(env Environment) config {
