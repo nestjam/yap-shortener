@@ -81,7 +81,12 @@ func (s *Server) shorten(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set(contentTypeHeader, textPlain)
 	w.WriteHeader(http.StatusCreated)
-	w.Write([]byte(s.baseURL + "/" + shortURL))
+	_, err = w.Write([]byte(s.baseURL + "/" + shortURL))
+
+	if err != nil {
+		internalError(w, "failed to write response")
+		return
+	}
 }
 
 func badRequest(w http.ResponseWriter, err string) {
@@ -90,4 +95,8 @@ func badRequest(w http.ResponseWriter, err string) {
 
 func notFound(w http.ResponseWriter, err string) {
 	http.Error(w, err, http.StatusNotFound)
+}
+
+func internalError(w http.ResponseWriter, err string) {
+	http.Error(w, err, http.StatusInternalServerError)
 }
