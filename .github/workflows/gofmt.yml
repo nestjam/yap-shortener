@@ -1,4 +1,4 @@
-name: Gofmt
+name: gofmt
 
 on: [push, pull_request]
 
