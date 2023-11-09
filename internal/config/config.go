@@ -2,7 +2,7 @@ package config
 
 import "flag"
 
-type config struct {
+type Config struct {
 	ServerAddress string
 	BaseURL       string
 }
@@ -16,14 +16,14 @@ type Environment interface {
 	LookupEnv(key string) (string, bool)
 }
 
-func New() config {
-	return config{
+func New() Config {
+	return Config{
 		ServerAddress: defaultServerAddr,
 		BaseURL:       defaultBaseURL,
 	}
 }
 
-func (conf config) FromArgs(args []string) config {
+func (conf Config) FromArgs(args []string) Config {
 	flagSet := flag.NewFlagSet("", flag.PanicOnError)
 	flagSet.StringVar(&conf.ServerAddress, "a", conf.ServerAddress, "server address")
 	flagSet.StringVar(&conf.BaseURL, "b", conf.BaseURL, "base URL")
@@ -31,7 +31,7 @@ func (conf config) FromArgs(args []string) config {
 	return conf
 }
 
-func (conf config) FromEnv(env Environment) config {
+func (conf Config) FromEnv(env Environment) Config {
 	if servAddr, ok := env.LookupEnv("SERVER_ADDRESS"); ok {
 		conf.ServerAddress = servAddr
 	}

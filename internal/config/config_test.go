@@ -19,14 +19,14 @@ func TestConfigFromArgs(t *testing.T) {
 	tests := []struct {
 		name string
 		args []string
-		want config
+		want Config
 	}{
 		{
 			name: "args contain only app name",
 			args: []string{
 				"app.exe",
 			},
-			want: config{
+			want: Config{
 				ServerAddress: defaultServerAddr,
 				BaseURL:       defaultBaseURL,
 			},
@@ -38,7 +38,7 @@ func TestConfigFromArgs(t *testing.T) {
 				"-a",
 				":8000",
 			},
-			want: config{
+			want: Config{
 				ServerAddress: ":8000",
 				BaseURL:       defaultBaseURL,
 			},
@@ -50,7 +50,7 @@ func TestConfigFromArgs(t *testing.T) {
 				"-a=:8000",
 				"-b=http://localhost:8000",
 			},
-			want: config{
+			want: Config{
 				ServerAddress: ":8000",
 				BaseURL:       "http://localhost:8000",
 			},
@@ -62,7 +62,7 @@ func TestConfigFromArgs(t *testing.T) {
 				"-b",
 				"http://localhost:3000",
 			},
-			want: config{
+			want: Config{
 				ServerAddress: defaultServerAddr,
 				BaseURL:       "http://localhost:3000",
 			},
@@ -92,11 +92,11 @@ func TestConfigFromEnv(t *testing.T) {
 	tests := []struct {
 		name string
 		env  Environment
-		want config
+		want Config
 	}{
 		{
 			name: "env contains server address and base URL",
-			want: config{
+			want: Config{
 				BaseURL:       "shrt.ru",
 				ServerAddress: ":8080",
 			},
@@ -109,7 +109,7 @@ func TestConfigFromEnv(t *testing.T) {
 		},
 		{
 			name: "env contains server address",
-			want: config{
+			want: Config{
 				BaseURL:       defaultBaseURL,
 				ServerAddress: ":8080",
 			},
@@ -121,7 +121,7 @@ func TestConfigFromEnv(t *testing.T) {
 		},
 		{
 			name: "env contains base URL",
-			want: config{
+			want: Config{
 				BaseURL:       "shrt.ru",
 				ServerAddress: defaultServerAddr,
 			},
