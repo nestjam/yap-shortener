@@ -1,26 +1,80 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"net/http"
+	"os"
 
 	"github.com/go-resty/resty/v2"
 )
 
 func main() {
-	shortenedURL, err := shortenURL("http://ya.ru")
+	const (
+		minCount          = 2
+		wrongArgs         = "short or full subcommand required"
+		shortenSubcommand = "short"
+		getSubcommand     = "full"
+	)
 
-	if err != nil {
-		fmt.Println(err)
+	if len(os.Args) < minCount {
+		exit(wrongArgs)
 	}
-	fmt.Println(shortenedURL)
 
-	url, err := getFullURL(shortenedURL)
+	shortenSet := flag.NewFlagSet(shortenSubcommand, flag.ExitOnError)
+	serverAddr := shortenSet.String("a", "http://localhost:8080/", "address of shortener server")
 
-	if err != nil {
-		fmt.Println(err)
+	getSet := flag.NewFlagSet(getSubcommand, flag.ExitOnError)
+
+	switch os.Args[1] {
+	case shortenSubcommand:
+		err := shortenSet.Parse(os.Args[minCount:])
+
+		if err != nil {
+			exit(err)
+		}
+
+		shortenURLs(shortenSet.Args(), *serverAddr)
+	case getSubcommand:
+		err := getSet.Parse(os.Args[minCount:])
+
+		if err != nil {
+			exit(err)
+		}
+
+		getURLs(getSet.Args())
+	default:
+		exit(wrongArgs)
 	}
-	fmt.Println(url)
+}
+
+func exit(msg any) {
+	fmt.Fprintln(os.Stderr, msg)
+	os.Exit(1)
+}
+
+func getURLs(urls []string) {
+	for _, url := range urls {
+		fullURL, err := getFullURL(url)
+
+		if err != nil {
+			exit(err)
+		}
+
+		fmt.Println(fullURL)
+	}
+}
+
+func shortenURLs(urls []string, addr string) {
+	for _, url := range urls {
+		shortenedURL, err := shortenURL(url, addr)
+
+		if err != nil {
+			exit(err)
+		}
+
+		fmt.Println(shortenedURL)
+	}
 }
 
 func getFullURL(shortURL string) (string, error) {
@@ -37,22 +91,18 @@ func getFullURL(shortURL string) (string, error) {
 		return "", fmt.Errorf("get full URL: %w", err)
 	}
 
-	fmt.Println(response.StatusCode())
 	return response.Header().Get("Location"), nil
 }
 
-func shortenURL(url string) (string, error) {
+func shortenURL(url string, addr string) (string, error) {
 	client := resty.New()
 	response, err := client.R().
 		SetBody(url).
-		Post("http://localhost:8080/")
+		Post(addr)
 
 	if err != nil {
-		return "", fmt.Errorf("shorten URL error: %w", err)
+		return "", fmt.Errorf("shorten URL: %w", err)
 	}
 
-	fmt.Println(response.StatusCode())
-	shortURL := string(response.Body())
-
-	return shortURL, nil
+	return string(response.Body()), nil
 }
