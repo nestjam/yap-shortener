@@ -1,6 +1,7 @@
 package server
 
 import (
+	"errors"
 	"io"
 	"net/http"
 
@@ -24,8 +25,8 @@ type URLStore interface {
 }
 
 type Server struct {
-	store URLStore
-	router chi.Router
+	store   URLStore
+	router  chi.Router
 	baseURL string
 }
 
@@ -43,7 +44,7 @@ func New(store URLStore, baseURL string) *Server {
 	r.Get("/{key}", s.redirect)
 	r.Post("/", s.shorten)
 
-	return s;
+	return s
 }
 
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -54,7 +55,7 @@ func (s *Server) redirect(w http.ResponseWriter, r *http.Request) {
 	key := chi.URLParam(r, "key")
 	url, err := s.store.Get(key)
 
-	if err == model.ErrNotFound {
+	if errors.Is(err, model.ErrNotFound) {
 		notFound(w, err.Error())
 		return
 	}
@@ -64,7 +65,7 @@ func (s *Server) redirect(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) shorten(w http.ResponseWriter, r *http.Request) {
 	body, err := io.ReadAll(r.Body)
-	r.Body.Close()
+	_ = r.Body.Close()
 
 	if err != nil {
 		badRequest(w, err.Error())

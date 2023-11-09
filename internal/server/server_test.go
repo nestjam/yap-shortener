@@ -51,7 +51,7 @@ func TestRedirect(t *testing.T) {
 		want := want{
 			code:     http.StatusTemporaryRedirect,
 			location: testURL,
-			body: "<a href=\"https://practicum.yandex.ru/\">Temporary Redirect</a>.\n\n",
+			body:     "<a href=\"https://practicum.yandex.ru/\">Temporary Redirect</a>.\n\n",
 		}
 		testStore := NewTestStore()
 		testStore.m["EwHXdJfB"] = testURL
@@ -199,7 +199,7 @@ func TestServeHTTP(t *testing.T) {
 }
 
 func newGetRequest(shortURL string) *http.Request {
-	r := httptest.NewRequest(http.MethodGet, "/" + shortURL, nil)
+	r := httptest.NewRequest(http.MethodGet, "/"+shortURL, nil)
 	r.Header.Set(contentTypeHeader, "text/plain; charset=utf-8")
 	return r
 }
@@ -229,7 +229,7 @@ func assertGetResponse(t *testing.T, want want, got *httptest.ResponseRecorder) 
 	assert.Equal(t, want.body, got.Body.String())
 }
 
-func assertResponseBody(t *testing.T, want string, got *httptest.ResponseRecorder){
+func assertResponseBody(t *testing.T, want string, got *httptest.ResponseRecorder) {
 	t.Helper()
 	assert.Equal(t, want, got.Body.String())
 }

@@ -36,7 +36,7 @@ func TestShorten(t *testing.T) {
 		{
 			want: "yyn",
 			args: args{
-				id: alphabetLen*alphabetLen,
+				id: alphabetLen * alphabetLen,
 			},
 		},
 		{
