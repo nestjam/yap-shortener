@@ -1,0 +1,12 @@
+name: gofmt
+
+on: [push, pull_request]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: Jerome1337/gofmt-action@v1.0.5
+        with:
+            gofmt-path: './src'
+            gofmt-flags: '-l -d'

@@ -1,11 +1,14 @@
 package server
 
 import (
+	"errors"
 	"io"
-	"mime"
 	"net/http"
-	"strings"
 
+	"github.com/go-chi/chi/middleware"
+	"github.com/go-chi/chi/v5"
+	"github.com/google/uuid"
+	"github.com/nestjam/yap-shortener/internal/model"
 	"github.com/nestjam/yap-shortener/internal/shortener"
 )
 
@@ -13,114 +16,88 @@ const (
 	locationHeader    = "Location"
 	contentTypeHeader = "Content-Type"
 	textPlain         = "text/plain"
-	host = "http://localhost:8080"
 )
-
-type ShortenFunc func(id uint32) string
 
 type URLStore interface {
 	Get(shortURL string) (string, error)
 
-	//TODO: Вынести генерацию id в отдельный тип или функцию вне UrlStore
-	Add(url string, shorten ShortenFunc) (string, error)
+	Add(shortURL, url string)
 }
 
-type ShortenerServer struct {
-	store URLStore
+type Server struct {
+	store   URLStore
+	router  chi.Router
+	baseURL string
 }
 
-func New(store URLStore) *ShortenerServer {
-	return &ShortenerServer{
+func New(store URLStore, baseURL string) *Server {
+	r := chi.NewRouter()
+	s := &Server{
 		store,
+		r,
+		baseURL,
 	}
+
+	r.Use(middleware.Logger)
+	r.Use(middleware.AllowContentType("text/plain"))
+
+	r.Get("/{key}", s.redirect)
+	r.Post("/", s.shorten)
+
+	return s
 }
 
-func (s *ShortenerServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	if r.Method == http.MethodGet {
-		s.get(w, r)
-	} else if r.Method == http.MethodPost {
-		s.shorten(w, r)
-	} else {
-		BadRequest(w,  "bad request")
-	}
+func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	s.router.ServeHTTP(w, r)
 }
 
-func (s *ShortenerServer) get(w http.ResponseWriter, r *http.Request) {
-	// if !HasContentType(r, textPlain) {
-	// 	BadRequest(w,  "content type is not text/plain")
-	// 	return
-	// }
+func (s *Server) redirect(w http.ResponseWriter, r *http.Request) {
+	key := chi.URLParam(r, "key")
+	url, err := s.store.Get(key)
 
-	var path = strings.TrimPrefix(r.URL.Path, "/")
-	if len(path) == 0 {
-		BadRequest(w,  "shortened URL is empty")
-		return
-	}
-
-	url, err := s.store.Get(path)
-
-	if err != nil {
-		BadRequest(w,  err.Error())
-		return
-	}
-
-	if len(url) == 0 {
-		BadRequest(w,  "shortened URL not found")
+	if errors.Is(err, model.ErrNotFound) {
+		notFound(w, err.Error())
 		return
 	}
 
 	http.Redirect(w, r, url, http.StatusTemporaryRedirect)
 }
 
-func (s *ShortenerServer) shorten(w http.ResponseWriter, r *http.Request) {
-	if !HasContentType(r, textPlain) {
-		BadRequest(w,  "content type is not text/plain")
-		return
-	}
-	
-	defer r.Body.Close()
+func (s *Server) shorten(w http.ResponseWriter, r *http.Request) {
 	body, err := io.ReadAll(r.Body)
+	_ = r.Body.Close()
 
 	if err != nil {
-		BadRequest(w, err.Error())
+		badRequest(w, err.Error())
 		return
 	}
 
 	if len(body) == 0 {
-		BadRequest(w, "url is empty")
+		badRequest(w, "url is empty")
 		return
 	}
 
-	shortURL, err := s.store.Add(string(body), shortener.Shorten)
-
-	if err != nil {
-		BadRequest(w, err.Error())
-		return
-	}
+	shortURL := shortener.Shorten(uuid.New().ID())
+	s.store.Add(shortURL, string(body))
 
 	w.Header().Set(contentTypeHeader, textPlain)
 	w.WriteHeader(http.StatusCreated)
-	w.Write([]byte(host + "/" + shortURL))
+	_, err = w.Write([]byte(s.baseURL + "/" + shortURL))
+
+	if err != nil {
+		internalError(w, "failed to write response")
+		return
+	}
 }
 
-func BadRequest(w http.ResponseWriter, err string){
+func badRequest(w http.ResponseWriter, err string) {
 	http.Error(w, err, http.StatusBadRequest)
 }
 
-func HasContentType(r *http.Request, mimetype string) bool {
-	contentType := r.Header.Get("Content-type")
-	if contentType == "" {
-		return mimetype == "application/octet-stream"
-	}
+func notFound(w http.ResponseWriter, err string) {
+	http.Error(w, err, http.StatusNotFound)
+}
 
-	for _, v := range strings.Split(contentType, ",") {
-		t, _, err := mime.ParseMediaType(v)
-		if err != nil {
-			break
-		}
-		if t == mimetype {
-			return true
-		}
-	}
-	return false
+func internalError(w http.ResponseWriter, err string) {
+	http.Error(w, err, http.StatusInternalServerError)
 }
