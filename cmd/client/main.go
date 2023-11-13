@@ -3,18 +3,17 @@ package main
 import (
 	"flag"
 	"fmt"
-	"net/http"
 	"os"
 
-	"github.com/go-resty/resty/v2"
+	"github.com/nestjam/yap-shortener/internal/client"
 )
 
 func main() {
 	const (
 		minCount          = 2
-		wrongArgs         = "short or full subcommand required"
-		shortenSubcommand = "short"
-		getSubcommand     = "full"
+		wrongArgs         = "get or shorten subcommand required"
+		shortenSubcommand = "shorten"
+		getSubcommand     = "get"
 	)
 
 	if len(os.Args) < minCount {
@@ -54,8 +53,10 @@ func exit(msg any) {
 }
 
 func getURLs(urls []string) {
+	client := client.New("")
+	
 	for _, url := range urls {
-		fullURL, err := getFullURL(url)
+		fullURL, err := client.GetFull(url)
 
 		if err != nil {
 			exit(err)
@@ -66,8 +67,10 @@ func getURLs(urls []string) {
 }
 
 func shortenURLs(urls []string, addr string) {
+	client := client.New(addr)
+
 	for _, url := range urls {
-		shortenedURL, err := shortenURL(url, addr)
+		shortenedURL, err := client.Shorten(url)
 
 		if err != nil {
 			exit(err)
@@ -75,34 +78,4 @@ func shortenURLs(urls []string, addr string) {
 
 		fmt.Println(shortenedURL)
 	}
-}
-
-func getFullURL(shortURL string) (string, error) {
-	client := resty.New()
-	client.SetRedirectPolicy(
-		resty.RedirectPolicyFunc(func(req *http.Request, via []*http.Request) error {
-			return http.ErrUseLastResponse
-		}),
-	)
-
-	response, err := client.R().Get(shortURL)
-
-	if err != nil {
-		return "", fmt.Errorf("get full URL: %w", err)
-	}
-
-	return response.Header().Get("Location"), nil
-}
-
-func shortenURL(url string, addr string) (string, error) {
-	client := resty.New()
-	response, err := client.R().
-		SetBody(url).
-		Post(addr)
-
-	if err != nil {
-		return "", fmt.Errorf("shorten URL: %w", err)
-	}
-
-	return string(response.Body()), nil
 }
