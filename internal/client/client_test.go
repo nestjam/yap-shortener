@@ -35,7 +35,7 @@ func TestGetFull(t *testing.T) {
 		}))
 		defer server.Close()
 
-		client := New(server.URL)
+		client := New(WithServerAddress(server.URL))
 		url, err := client.GetFull(server.URL + tt.args.shortURL)
 
 		assert.NoError(t, err)
@@ -54,7 +54,7 @@ func TestGetFull(t *testing.T) {
 		}))
 		defer server.Close()
 
-		client := New(server.URL)
+		client := New(WithServerAddress(server.URL))
 		_, err := client.GetFull(server.URL + tt.args.shortURL)
 
 		assert.Error(t, err)
@@ -75,7 +75,7 @@ func TestGetFull(t *testing.T) {
 
 		serverURL := server.URL
 		server.Close()
-		client := New(serverURL)
+		client := New(WithServerAddress(serverURL))
 
 		_, err := client.GetFull(serverURL + tt.args.shortURL)
 
@@ -110,7 +110,7 @@ func TestShorten(t *testing.T) {
 		}))
 		defer server.Close()
 
-		client := New(server.URL)
+		client := New(WithServerAddress(server.URL))
 		shortURL, err := client.Shorten(tt.args.url)
 
 		assert.NoError(t, err)
@@ -131,7 +131,7 @@ func TestShorten(t *testing.T) {
 
 		serverURL := server.URL
 		server.Close()
-		client := New(serverURL)
+		client := New(WithServerAddress(serverURL))
 		_, err := client.Shorten(tt.args.url)
 
 		assert.Error(t, err)

@@ -8,14 +8,15 @@ import (
 )
 
 type Client struct {
-	inner   *resty.Client
-	baseURL string
+	inner         *resty.Client
+	serverAddress string
 }
 
-func New(baseURL string) *Client {
+type Option func(*Client)
+
+func New(options ...Option) *Client {
 	client := &Client{
-		resty.New(),
-		baseURL,
+		inner: resty.New(),
 	}
 
 	client.inner.SetRedirectPolicy(
@@ -24,7 +25,17 @@ func New(baseURL string) *Client {
 		}),
 	)
 
+	for _, opt := range options {
+		opt(client)
+	}
+
 	return client
+}
+
+func WithServerAddress(addr string) Option {
+	return func(client *Client) {
+		client.serverAddress = addr
+	}
 }
 
 func (c *Client) GetFull(shortURL string) (string, error) {
@@ -45,7 +56,7 @@ func (c *Client) GetFull(shortURL string) (string, error) {
 func (c *Client) Shorten(url string) (string, error) {
 	response, err := c.inner.R().
 		SetBody(url).
-		Post(c.baseURL)
+		Post(c.serverAddress)
 
 	if err != nil {
 		return "", fmt.Errorf("shorten URL: %w", err)

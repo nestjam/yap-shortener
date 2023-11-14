@@ -53,8 +53,8 @@ func exit(msg any) {
 }
 
 func getURLs(urls []string) {
-	client := client.New("")
-	
+	client := client.New()
+
 	for _, url := range urls {
 		fullURL, err := client.GetFull(url)
 
@@ -67,7 +67,7 @@ func getURLs(urls []string) {
 }
 
 func shortenURLs(urls []string, addr string) {
-	client := client.New(addr)
+	client := client.New(client.WithServerAddress(addr))
 
 	for _, url := range urls {
 		shortenedURL, err := client.Shorten(url)
