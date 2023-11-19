@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestGetFull(t *testing.T) {
+func TestExpand(t *testing.T) {
 	type args struct {
 		shortURL string
 	}
@@ -20,7 +20,7 @@ func TestGetFull(t *testing.T) {
 		want string
 	}
 
-	t.Run("get full url", func(t *testing.T) {
+	t.Run("expand url", func(t *testing.T) {
 		tt := test{
 			args: args{
 				"/abc",
@@ -36,7 +36,7 @@ func TestGetFull(t *testing.T) {
 		defer server.Close()
 
 		client := New(WithServerAddress(server.URL))
-		url, err := client.GetFull(server.URL + tt.args.shortURL)
+		url, err := client.Expand(server.URL + tt.args.shortURL)
 
 		assert.NoError(t, err)
 		assert.Equal(t, tt.want, url)
@@ -47,7 +47,7 @@ func TestGetFull(t *testing.T) {
 			args: args{
 				"/abc",
 			},
-			want: "get full URL: not found",
+			want: "expand URL: not found",
 		}
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusNotFound)
@@ -55,7 +55,7 @@ func TestGetFull(t *testing.T) {
 		defer server.Close()
 
 		client := New(WithServerAddress(server.URL))
-		_, err := client.GetFull(server.URL + tt.args.shortURL)
+		_, err := client.Expand(server.URL + tt.args.shortURL)
 
 		assert.Error(t, err)
 		assert.Equal(t, tt.want, err.Error())
@@ -76,7 +76,7 @@ func TestGetFull(t *testing.T) {
 		server.Close()
 		client := New(WithServerAddress(serverURL))
 
-		_, err := client.GetFull(serverURL + tt.args.shortURL)
+		_, err := client.Expand(serverURL + tt.args.shortURL)
 
 		assert.Error(t, err)
 	})

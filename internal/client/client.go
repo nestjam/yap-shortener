@@ -38,8 +38,8 @@ func WithServerAddress(addr string) Option {
 	}
 }
 
-func (c *Client) GetFull(shortURL string) (string, error) {
-	const op = "get full URL"
+func (c *Client) Expand(shortURL string) (string, error) {
+	const op = "expand URL"
 	response, err := c.inner.R().Get(shortURL)
 
 	if err != nil {

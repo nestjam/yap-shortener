@@ -11,9 +11,9 @@ import (
 func main() {
 	const (
 		minCount          = 2
-		wrongArgs         = "get or shorten subcommand required"
+		wrongArgs         = "expand or shorten subcommand required"
 		shortenSubcommand = "shorten"
-		getSubcommand     = "get"
+		expandSubcommand  = "expand"
 	)
 
 	if len(os.Args) < minCount {
@@ -23,7 +23,7 @@ func main() {
 	shortenSet := flag.NewFlagSet(shortenSubcommand, flag.ExitOnError)
 	serverAddr := shortenSet.String("a", "http://localhost:8080/", "address of shortener server")
 
-	getSet := flag.NewFlagSet(getSubcommand, flag.ExitOnError)
+	expandSet := flag.NewFlagSet(expandSubcommand, flag.ExitOnError)
 
 	switch os.Args[1] {
 	case shortenSubcommand:
@@ -34,14 +34,14 @@ func main() {
 		}
 
 		shortenURLs(shortenSet.Args(), *serverAddr)
-	case getSubcommand:
-		err := getSet.Parse(os.Args[minCount:])
+	case expandSubcommand:
+		err := expandSet.Parse(os.Args[minCount:])
 
 		if err != nil {
 			exit(err)
 		}
 
-		getURLs(getSet.Args())
+		expandURLs(expandSet.Args())
 	default:
 		exit(wrongArgs)
 	}
@@ -52,11 +52,11 @@ func exit(msg any) {
 	os.Exit(1)
 }
 
-func getURLs(urls []string) {
+func expandURLs(urls []string) {
 	client := client.New()
 
 	for _, url := range urls {
-		fullURL, err := client.GetFull(url)
+		fullURL, err := client.Expand(url)
 
 		if err != nil {
 			exit(err)
