@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestGetFull(t *testing.T) {
@@ -15,7 +16,6 @@ func TestGetFull(t *testing.T) {
 	}
 
 	type test struct {
-		name string
 		args args
 		want string
 	}
@@ -66,7 +66,6 @@ func TestGetFull(t *testing.T) {
 			args: args{
 				"/abc",
 			},
-			want: "get full URL: not found",
 		}
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusNotFound)
@@ -89,7 +88,6 @@ func TestShorten(t *testing.T) {
 	}
 
 	type test struct {
-		name string
 		args args
 		want string
 	}
@@ -106,7 +104,8 @@ func TestShorten(t *testing.T) {
 			assert.Equal(t, string(body), tt.args.url)
 
 			w.WriteHeader(http.StatusCreated)
-			w.Write([]byte(tt.want))
+			_, err := w.Write([]byte(tt.want))
+			require.NoError(t, err)
 		}))
 		defer server.Close()
 
@@ -125,7 +124,8 @@ func TestShorten(t *testing.T) {
 		}
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusCreated)
-			w.Write([]byte(tt.want))
+			_, err := w.Write([]byte(tt.want))
+			require.NoError(t, err)
 		}))
 		defer server.Close()
 

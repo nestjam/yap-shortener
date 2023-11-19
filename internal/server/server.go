@@ -8,6 +8,7 @@ import (
 	"github.com/go-chi/chi/middleware"
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
+	"github.com/nestjam/yap-shortener/internal/log"
 	"github.com/nestjam/yap-shortener/internal/model"
 	"github.com/nestjam/yap-shortener/internal/shortener"
 )
@@ -38,7 +39,7 @@ func New(store URLStore, baseURL string) *Server {
 		baseURL,
 	}
 
-	r.Use(middleware.Logger)
+	r.Use(log.RequestResponseLogger)
 	r.Use(middleware.AllowContentType("text/plain"))
 
 	r.Get("/{key}", s.redirect)
