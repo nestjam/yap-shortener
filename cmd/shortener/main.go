@@ -18,6 +18,8 @@ func main() {
 		FromEnv(env.New())
 
 	logger := setupLog()
+	defer flush(logger)
+
 	store := store.NewInMemory()
 	server := server.New(store, config.BaseURL)
 
@@ -25,6 +27,10 @@ func main() {
 	if err := http.ListenAndServe(config.ServerAddress, server); err != nil {
 		logger.Fatal(err.Error(), zap.String("event", "start server"))
 	}
+}
+
+func flush(logger *zap.Logger) {
+	_ = logger.Sync()
 }
 
 func setupLog() *zap.Logger {
