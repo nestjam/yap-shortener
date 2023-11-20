@@ -21,21 +21,13 @@ type (
 )
 
 var (
-	Logger *zap.Logger        = zap.NewNop()
-	sugar  *zap.SugaredLogger = Logger.Sugar()
+	Logger *zap.Logger = zap.NewNop()
 )
 
-func Initialize(level string) error {
+func Initialize() error {
 	const op = "initializing logger"
-
-	lvl, err := zap.ParseAtomicLevel(level)
-
-	if err != nil {
-		return errorf(op, err)
-	}
-
 	config := zap.NewProductionConfig()
-	config.Level = lvl
+	config.Level = zap.NewAtomicLevelAt(zap.InfoLevel)
 	logger, err := config.Build()
 
 	if err != nil {
@@ -43,7 +35,6 @@ func Initialize(level string) error {
 	}
 
 	Logger = logger
-	sugar = logger.Sugar()
 	return nil
 }
 
@@ -53,7 +44,6 @@ func errorf(op string, err error) error {
 
 func (w *loggingResponseWriter) Write(b []byte) (int, error) {
 	const op = "logging response"
-
 	size, err := w.ResponseWriter.Write(b)
 
 	if err != nil {
@@ -84,12 +74,12 @@ func RequestResponseLogger(h http.Handler) http.Handler {
 		h.ServeHTTP(&lw, r)
 
 		duration := time.Since(start)
-		sugar.Infoln(
-			"uri", r.RequestURI,
-			"method", r.Method,
-			"status", resp.status,
-			"duration", duration,
-			"size", resp.size,
+		Logger.Info("",
+			zap.String("uri", r.RequestURI),
+			zap.String("method", r.Method),
+			zap.Int("status", resp.status),
+			zap.Duration("duration", duration),
+			zap.Int("size", resp.size),
 		)
 	}
 	return http.HandlerFunc(log)
