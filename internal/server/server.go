@@ -1,9 +1,11 @@
 package server
 
 import (
+	"encoding/json"
 	"errors"
 	"io"
 	"net/http"
+	"strconv"
 
 	"github.com/go-chi/chi/middleware"
 	"github.com/go-chi/chi/v5"
@@ -14,9 +16,13 @@ import (
 )
 
 const (
-	locationHeader    = "Location"
-	contentTypeHeader = "Content-Type"
-	textPlain         = "text/plain"
+	locationHeader                = "Location"
+	contentTypeHeader             = "Content-Type"
+	contentLengthHeader           = "Content-Length"
+	textPlain                     = "text/plain"
+	applicationJSON               = "application/json"
+	urlIsEmptyMessage             = "url is empty"
+	failedToWriterResponseMessage = "failed to prepare response"
 )
 
 type URLStore interface {
@@ -31,6 +37,14 @@ type Server struct {
 	baseURL string
 }
 
+type ShortenRequest struct {
+	URL string `json:"url"`
+}
+
+type ShortenResponse struct {
+	Result string `json:"result"`
+}
+
 func New(store URLStore, baseURL string) *Server {
 	r := chi.NewRouter()
 	s := &Server{
@@ -40,10 +54,17 @@ func New(store URLStore, baseURL string) *Server {
 	}
 
 	r.Use(log.RequestResponseLogger)
-	r.Use(middleware.AllowContentType("text/plain"))
 
-	r.Get("/{key}", s.redirect)
-	r.Post("/", s.shorten)
+	r.Route("/api/shorten", func(r chi.Router) {
+		r.Use(middleware.AllowContentType(applicationJSON))
+		r.Post("/", s.apiShorten)
+	})
+
+	r.Route("/", func(r chi.Router) {
+		r.Use(middleware.AllowContentType(textPlain))
+		r.Get("/{key}", s.redirect)
+		r.Post("/", s.shorten)
+	})
 
 	return s
 }
@@ -74,7 +95,7 @@ func (s *Server) shorten(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if len(body) == 0 {
-		badRequest(w, "url is empty")
+		badRequest(w, urlIsEmptyMessage)
 		return
 	}
 
@@ -86,7 +107,44 @@ func (s *Server) shorten(w http.ResponseWriter, r *http.Request) {
 	_, err = w.Write([]byte(s.baseURL + "/" + shortURL))
 
 	if err != nil {
-		internalError(w, "failed to write response")
+		internalError(w, failedToWriterResponseMessage)
+		return
+	}
+}
+
+func (s *Server) apiShorten(w http.ResponseWriter, r *http.Request) {
+	var req ShortenRequest
+	decoder := json.NewDecoder(r.Body)
+	err := decoder.Decode(&req)
+
+	if err != nil {
+		badRequest(w, "failed to parse request")
+		return
+	}
+
+	if len(req.URL) == 0 {
+		badRequest(w, urlIsEmptyMessage)
+		return
+	}
+
+	shortURL := shortener.Shorten(uuid.New().ID())
+	s.store.Add(shortURL, req.URL)
+
+	resp := ShortenResponse{Result: s.baseURL + "/" + shortURL}
+	content, err := json.Marshal(resp)
+
+	if err != nil {
+		internalError(w, "failed to prepare response")
+		return
+	}
+
+	w.Header().Set(contentTypeHeader, applicationJSON)
+	w.Header().Set(contentLengthHeader, strconv.Itoa(len(content)))
+	w.WriteHeader(http.StatusCreated)
+	_, err = w.Write(content)
+
+	if err != nil {
+		internalError(w, failedToWriterResponseMessage)
 		return
 	}
 }
