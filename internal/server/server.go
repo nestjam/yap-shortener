@@ -10,6 +10,7 @@ import (
 	"github.com/go-chi/chi/middleware"
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
+	"github.com/nestjam/yap-shortener/internal/compress"
 	"github.com/nestjam/yap-shortener/internal/log"
 	"github.com/nestjam/yap-shortener/internal/model"
 	"github.com/nestjam/yap-shortener/internal/shortener"
@@ -21,6 +22,7 @@ const (
 	contentLengthHeader           = "Content-Length"
 	textPlain                     = "text/plain"
 	applicationJSON               = "application/json"
+	applicationGZIP               = "application/x-gzip"
 	urlIsEmptyMessage             = "url is empty"
 	failedToWriterResponseMessage = "failed to prepare response"
 )
@@ -57,11 +59,13 @@ func New(store URLStore, baseURL string) *Server {
 
 	r.Route("/api/shorten", func(r chi.Router) {
 		r.Use(middleware.AllowContentType(applicationJSON))
-		r.Post("/", s.apiShorten)
+		r.Use(compress.Compressor)
+		r.Post("/", s.shortenAPI)
 	})
 
 	r.Route("/", func(r chi.Router) {
-		r.Use(middleware.AllowContentType(textPlain))
+		r.Use(middleware.AllowContentType(textPlain, applicationGZIP))
+		r.Use(compress.Compressor)
 		r.Get("/{key}", s.redirect)
 		r.Post("/", s.shorten)
 	})
@@ -112,7 +116,7 @@ func (s *Server) shorten(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (s *Server) apiShorten(w http.ResponseWriter, r *http.Request) {
+func (s *Server) shortenAPI(w http.ResponseWriter, r *http.Request) {
 	var req ShortenRequest
 	decoder := json.NewDecoder(r.Body)
 	err := decoder.Decode(&req)

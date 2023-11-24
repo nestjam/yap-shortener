@@ -1,7 +1,10 @@
 package server
 
 import (
+	"bytes"
+	"compress/gzip"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
@@ -15,8 +18,12 @@ import (
 )
 
 const (
-	testURL = "https://practicum.yandex.ru/"
-	baseURL = "http://localhost:8080"
+	testURL               = "https://practicum.yandex.ru/"
+	baseURL               = "http://localhost:8080"
+	acceptEncodingHeader  = "Accept-Encoding"
+	contentEncodingHeader = "Content-Encoding"
+	gzipEncoding          = "gzip"
+	apiShortenPath        = "/api/shorten"
 )
 
 type want struct {
@@ -195,19 +202,47 @@ func TestShorten(t *testing.T) {
 		assert.Equal(t, want.code, response.Code)
 		assertErrorMessage(t, want.body, response)
 	})
+
+	t.Run("client accepts br and gzip encodings", func(t *testing.T) {
+		testStore := NewTestStore(baseURL)
+		sut := New(testStore, baseURL)
+		request := newShortenRequest(testURL)
+		request.Header.Set(acceptEncodingHeader, "br, "+gzipEncoding)
+		response := httptest.NewRecorder()
+
+		sut.ServeHTTP(response, request)
+
+		assert.Equal(t, http.StatusCreated, response.Code)
+		assertContentEncoding(t, gzipEncoding, response)
+		got := getDecoded(t, response.Body)
+		assert.Equal(t, testStore.lastShortURL, got)
+	})
+
+	t.Run("client sends content type x-gzip", func(t *testing.T) {
+		testStore := NewTestStore(baseURL)
+		sut := New(testStore, baseURL)
+		request := newEncodedShortenRequest(t, testURL)
+		response := httptest.NewRecorder()
+
+		sut.ServeHTTP(response, request)
+
+		assert.Equal(t, http.StatusCreated, response.Code)
+		assertContentEncoding(t, "", response)
+		assertBody(t, testStore.lastShortURL, response)
+	})
 }
 
-func TestAPIShorten(t *testing.T) {
+func TestShortenAPI(t *testing.T) {
 	t.Run("shorten url", func(t *testing.T) {
 		testStore := NewTestStore(baseURL)
 		sut := New(testStore, baseURL)
-		request := newAPIShortenRequest(t, testURL)
+		request := newShortenAPIRequest(t, testURL)
 		response := httptest.NewRecorder()
 
 		sut.ServeHTTP(response, request)
 
 		body := response.Body.String()
-		got := getShortURLFromResponse(t, response)
+		got := getShortURL(t, response.Body)
 		assert.Equal(t, http.StatusCreated, response.Code)
 		assert.Equal(t, testStore.lastShortURL, got)
 		assertContentType(t, applicationJSON, response)
@@ -217,7 +252,7 @@ func TestAPIShorten(t *testing.T) {
 	t.Run("content type is not application/json", func(t *testing.T) {
 		testStore := NewTestStore(baseURL)
 		sut := New(testStore, baseURL)
-		request := newAPIShortenRequest(t, testURL)
+		request := newShortenAPIRequest(t, testURL)
 		request.Header.Set(contentTypeHeader, textPlain)
 		response := httptest.NewRecorder()
 
@@ -229,23 +264,23 @@ func TestAPIShorten(t *testing.T) {
 	t.Run("shorten same url twice", func(t *testing.T) {
 		testStore := NewTestStore(baseURL)
 		sut := New(testStore, baseURL)
-		request := newAPIShortenRequest(t, testURL)
+		request := newShortenAPIRequest(t, testURL)
 		response := httptest.NewRecorder()
 
 		//1
 		sut.ServeHTTP(response, request)
 
-		got := getShortURLFromResponse(t, response)
+		got := getShortURL(t, response.Body)
 		assert.Equal(t, http.StatusCreated, response.Code)
 		assert.Equal(t, testStore.lastShortURL, got)
 
-		request = newAPIShortenRequest(t, testURL)
+		request = newShortenAPIRequest(t, testURL)
 		response = httptest.NewRecorder()
 
 		//2
 		sut.ServeHTTP(response, request)
 
-		got = getShortURLFromResponse(t, response)
+		got = getShortURL(t, response.Body)
 		assert.Equal(t, http.StatusCreated, response.Code)
 		assert.Equal(t, testStore.lastShortURL, got)
 	})
@@ -253,7 +288,7 @@ func TestAPIShorten(t *testing.T) {
 	t.Run("url is empty", func(t *testing.T) {
 		testStore := NewTestStore(baseURL)
 		sut := New(testStore, baseURL)
-		request := newAPIShortenRequest(t, "")
+		request := newShortenAPIRequest(t, "")
 		response := httptest.NewRecorder()
 
 		sut.ServeHTTP(response, request)
@@ -273,6 +308,45 @@ func TestAPIShorten(t *testing.T) {
 
 		assert.Equal(t, http.StatusBadRequest, response.Code)
 		assertErrorMessage(t, "failed to parse request", response)
+	})
+
+	t.Run("client accepts br and gzip encodings", func(t *testing.T) {
+		testStore := NewTestStore(baseURL)
+		sut := New(testStore, baseURL)
+		request := newShortenAPIRequest(t, testURL)
+		request.Header.Set(acceptEncodingHeader, "br, "+gzipEncoding)
+		response := httptest.NewRecorder()
+
+		sut.ServeHTTP(response, request)
+
+		assert.Equal(t, http.StatusCreated, response.Code)
+		assertContentEncoding(t, gzipEncoding, response)
+		got := getShortURL(t, decodeResponse(t, response))
+		assert.Equal(t, testStore.lastShortURL, got)
+	})
+
+	t.Run("client does not accept encoding", func(t *testing.T) {
+		testStore := NewTestStore(baseURL)
+		sut := New(testStore, baseURL)
+		request := newShortenAPIRequest(t, testURL)
+		response := httptest.NewRecorder()
+
+		sut.ServeHTTP(response, request)
+
+		assertContentEncoding(t, "", response)
+	})
+
+	t.Run("client sends encoded content", func(t *testing.T) {
+		testStore := NewTestStore(baseURL)
+		sut := New(testStore, baseURL)
+		request := newEncodedShortenAPIRequest(t, testURL)
+		response := httptest.NewRecorder()
+
+		sut.ServeHTTP(response, request)
+
+		assert.Equal(t, http.StatusCreated, response.Code)
+		got := getShortURL(t, response.Body)
+		assert.Equal(t, testStore.lastShortURL, got)
 	})
 }
 
@@ -302,16 +376,56 @@ func newShortenRequest(url string) *http.Request {
 	return r
 }
 
-func newAPIShortenRequest(t *testing.T, url string) *http.Request {
+func newEncodedShortenRequest(t *testing.T, url string) *http.Request {
 	t.Helper()
-	req := ShortenRequest{URL: url}
-	body, err := json.Marshal(&req)
 
-	require.NoError(t, err, "unable to marshal struct %q, '%v'", req, err)
+	var buf bytes.Buffer
+	gw := gzip.NewWriter(&buf)
+	defer func() {
+		_ = gw.Close()
+	}()
+	_, err := gw.Write([]byte(url))
 
-	r := httptest.NewRequest(http.MethodPost, "/api/shorten", strings.NewReader(string(body)))
-	r.Header.Set(contentTypeHeader, applicationJSON)
+	require.NoError(t, err, "failed to write encoded: %v", err)
+
+	r := httptest.NewRequest(http.MethodPost, "/", &buf)
+	r.Header.Set(contentTypeHeader, applicationGZIP)
+	r.Header.Set(contentEncodingHeader, gzipEncoding)
 	return r
+}
+
+func newShortenAPIRequest(t *testing.T, url string) *http.Request {
+	t.Helper()
+	r := ShortenRequest{URL: url}
+	body, err := json.Marshal(&r)
+
+	require.NoError(t, err, "unable to marshal %q, %v", r, err)
+
+	request := httptest.NewRequest(http.MethodPost, apiShortenPath, strings.NewReader(string(body)))
+	request.Header.Set(contentTypeHeader, applicationJSON)
+	return request
+}
+
+func newEncodedShortenAPIRequest(t *testing.T, url string) *http.Request {
+	t.Helper()
+	r := ShortenRequest{URL: url}
+	body, err := json.Marshal(&r)
+
+	require.NoError(t, err, "unable to marshal %q, %v", r, err)
+
+	var buf bytes.Buffer
+	gw := gzip.NewWriter(&buf)
+	defer func() {
+		_ = gw.Close()
+	}()
+	_, err = gw.Write(body)
+
+	require.NoError(t, err, "failed to write encoded: %v", err)
+
+	request := httptest.NewRequest(http.MethodPost, apiShortenPath, &buf)
+	request.Header.Set(contentTypeHeader, applicationJSON)
+	request.Header.Set(contentEncodingHeader, gzipEncoding)
+	return request
 }
 
 func newPutRequest(url string) *http.Request {
@@ -345,12 +459,39 @@ func assertContentLenght(t *testing.T, want int, r *httptest.ResponseRecorder) {
 	assert.Equal(t, strconv.Itoa(want), r.Header().Get(contentLengthHeader))
 }
 
-func getShortURLFromResponse(t *testing.T, response *httptest.ResponseRecorder) string {
+func getShortURL(t *testing.T, r io.Reader) string {
 	t.Helper()
-	var r ShortenResponse
-	err := json.NewDecoder(response.Body).Decode(&r)
+	var resp ShortenResponse
+	err := json.NewDecoder(r).Decode(&resp)
 
-	require.NoError(t, err, "unable to parse response from server %q, '%v'", response.Body, err)
+	require.NoError(t, err, "unable to parse response from server: %v", err)
 
-	return r.Result
+	return resp.Result
+}
+
+func assertContentEncoding(t *testing.T, want string, r *httptest.ResponseRecorder) {
+	t.Helper()
+	assert.Equal(t, want, r.Header().Get(contentEncodingHeader))
+}
+
+func getDecoded(t *testing.T, r io.Reader) string {
+	t.Helper()
+	gz, err := gzip.NewReader(r)
+
+	require.NoError(t, err, "failed to decode: %v", err)
+
+	defer func() {
+		_ = gz.Close()
+	}()
+
+	str, err := io.ReadAll(gz)
+
+	require.NoError(t, err, "failed to read decoded: %v", err)
+
+	return string(str)
+}
+
+func decodeResponse(t *testing.T, r *httptest.ResponseRecorder) *strings.Reader {
+	t.Helper()
+	return strings.NewReader(getDecoded(t, r.Body))
 }
