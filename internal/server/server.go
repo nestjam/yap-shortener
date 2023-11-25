@@ -57,15 +57,17 @@ func New(store URLStore, baseURL string) *Server {
 
 	r.Use(log.RequestResponseLogger)
 
-	r.Route("/api/shorten", func(r chi.Router) {
+	r.Group(func(r chi.Router) {
 		r.Use(middleware.AllowContentType(applicationJSON))
-		r.Use(compress.Compressor)
-		r.Post("/", s.shortenAPI)
+		r.Use(compress.RequestDecoder, compress.ResponseEncoder)
+
+		r.Post("/api/shorten", s.shortenAPI)
 	})
 
-	r.Route("/", func(r chi.Router) {
+	r.Group(func(r chi.Router) {
 		r.Use(middleware.AllowContentType(textPlain, applicationGZIP))
-		r.Use(compress.Compressor)
+		r.Use(compress.RequestDecoder, compress.ResponseEncoder)
+
 		r.Get("/{key}", s.redirect)
 		r.Post("/", s.shorten)
 	})

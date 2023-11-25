@@ -7,29 +7,34 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"sync"
 )
 
 const (
 	acceptEncodingHeader  = "Accept-Encoding"
 	contentEncodingHeader = "Content-Encoding"
+	contentLengthHeader   = "Content-Length"
 	gzipEncoding          = "gzip"
 )
 
-type compressWriter struct {
+var gzipWriterPool = sync.Pool{
+	New: func() interface{} {
+		return gzip.NewWriter(io.Discard)
+	},
+}
+
+type gzipResponseWriter struct {
+	io.Writer
 	http.ResponseWriter
-	gw *gzip.Writer
 }
 
-func newCompressWriter(w http.ResponseWriter) *compressWriter {
-	return &compressWriter{
-		w,
-		gzip.NewWriter(w),
-	}
+func (w *gzipResponseWriter) WriteHeader(statusCode int) {
+	w.Header().Del(contentLengthHeader)
+	w.ResponseWriter.WriteHeader(statusCode)
 }
 
-func (c *compressWriter) Write(p []byte) (int, error) {
-	// return c.gw.Write(p)
-	n, err := c.gw.Write(p)
+func (w *gzipResponseWriter) Write(p []byte) (int, error) {
+	n, err := w.Writer.Write(p)
 
 	if err != nil {
 		return 0, fmt.Errorf("write compressed: %w", err)
@@ -38,37 +43,26 @@ func (c *compressWriter) Write(p []byte) (int, error) {
 	return n, nil
 }
 
-func (c *compressWriter) Close() error {
-	err := c.gw.Close()
-
-	if err != nil {
-		return fmt.Errorf("close writer: %w", err)
-	}
-
-	return nil
+type gzipRequestReader struct {
+	io.ReadCloser
+	gz *gzip.Reader
 }
 
-type compressReader struct {
-	r  io.ReadCloser
-	gr *gzip.Reader
-}
-
-func newCompressReader(r io.ReadCloser) (*compressReader, error) {
-	gr, err := gzip.NewReader(r)
+func newGzipRequestReader(r io.ReadCloser) (*gzipRequestReader, error) {
+	gzipReader, err := gzip.NewReader(r)
 
 	if err != nil {
-		return nil, fmt.Errorf("new reader: %w", err)
+		return nil, fmt.Errorf("create gzip reader: %w", err)
 	}
 
-	return &compressReader{
+	return &gzipRequestReader{
 		r,
-		gr,
+		gzipReader,
 	}, nil
 }
 
-func (c *compressReader) Read(p []byte) (int, error) {
-	// return c.gr.Read(p)
-	n, err := c.gr.Read(p)
+func (g *gzipRequestReader) Read(p []byte) (int, error) {
+	n, err := g.gz.Read(p)
 
 	if errors.Is(err, io.EOF) {
 		return n, io.EOF
@@ -81,50 +75,61 @@ func (c *compressReader) Read(p []byte) (int, error) {
 	return n, nil
 }
 
-func (c *compressReader) Close() error {
-	if err := c.r.Close(); err != nil {
+func (g *gzipRequestReader) Close() error {
+	if err := g.ReadCloser.Close(); err != nil {
 		return fmt.Errorf("close reader: %w", err)
 	}
 
-	if err := c.gr.Close(); err != nil {
-		return fmt.Errorf("close compress reader: %w", err)
+	if err := g.gz.Close(); err != nil {
+		return fmt.Errorf("close gzip reader: %w", err)
 	}
 
 	return nil
 }
 
-func Compressor(h http.Handler) http.Handler {
-	compress := func(w http.ResponseWriter, r *http.Request) {
-		contentEncodings := r.Header.Get(contentEncodingHeader)
-		if strings.Contains(contentEncodings, gzipEncoding) {
-			cr, err := newCompressReader(r.Body)
+func ResponseEncoder(h http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !strings.Contains(r.Header.Get(acceptEncodingHeader), gzipEncoding) {
+			h.ServeHTTP(w, r)
+			return
+		}
+
+		w.Header().Set(contentEncodingHeader, gzipEncoding)
+
+		gz, ok := gzipWriterPool.Get().(*gzip.Writer)
+		if !ok {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		defer gzipWriterPool.Put(gz)
+
+		gz.Reset(w)
+		defer func() {
+			_ = gz.Close()
+		}()
+
+		h.ServeHTTP(&gzipResponseWriter{ResponseWriter: w, Writer: gz}, r)
+	})
+}
+
+func RequestDecoder(h http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		encoding := r.Header.Get(contentEncodingHeader)
+		if strings.Contains(encoding, gzipEncoding) {
+			reader, err := newGzipRequestReader(r.Body)
 
 			if err != nil {
 				w.WriteHeader(http.StatusInternalServerError)
 				return
 			}
 
+			r.Body = reader
+
 			defer func() {
-				_ = cr.Close()
+				_ = reader.Close()
 			}()
-
-			r.Body = cr
 		}
 
-		acceptEncodings := r.Header.Get(acceptEncodingHeader)
-		if !strings.Contains(acceptEncodings, gzipEncoding) {
-			h.ServeHTTP(w, r)
-			return
-		}
-
-		cw := newCompressWriter(w)
-		defer func() {
-			_ = cw.Close()
-		}()
-
-		w.Header().Add(contentEncodingHeader, gzipEncoding)
-
-		h.ServeHTTP(cw, r)
-	}
-	return http.HandlerFunc(compress)
+		h.ServeHTTP(w, r)
+	})
 }
