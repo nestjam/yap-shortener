@@ -3,6 +3,7 @@ package main
 import (
 	"net/http"
 	"os"
+	"strings"
 
 	conf "github.com/nestjam/yap-shortener/internal/config"
 	env "github.com/nestjam/yap-shortener/internal/config/environment"
@@ -10,6 +11,10 @@ import (
 	"github.com/nestjam/yap-shortener/internal/server"
 	"github.com/nestjam/yap-shortener/internal/store"
 	"go.uber.org/zap"
+)
+
+const (
+	eventKey = "event"
 )
 
 func main() {
@@ -20,13 +25,41 @@ func main() {
 	logger := setupLogger()
 	defer tearDown(logger)
 
-	store := store.NewInMemory()
-	server := server.New(store, config.BaseURL)
+	storage, tearDownStorage := newStorage(config, logger)
+	defer tearDownStorage()
 
-	logger.Info("Running server", zap.String("address", config.ServerAddress))
-	if err := http.ListenAndServe(config.ServerAddress, server); err != nil {
-		logger.Fatal(err.Error(), zap.String("event", "start server"))
+	server := server.New(storage, config.BaseURL)
+	listenAndServe(config.ServerAddress, server, logger)
+}
+
+func listenAndServe(address string, server *server.Server, logger *zap.Logger) {
+	logger.Info("Running server", zap.String("address", address))
+	if err := http.ListenAndServe(address, server); err != nil {
+		logger.Fatal(err.Error(), zap.String(eventKey, "start server"))
 	}
+}
+
+func newStorage(conf conf.Config, logger *zap.Logger) (server.URLStorage, func()) {
+	if strings.TrimSpace(conf.FileStoragePath) == "" {
+		return store.NewInMemory(), func() {}
+	}
+
+	return newFileStorage(conf, logger)
+}
+
+func newFileStorage(conf conf.Config, logger *zap.Logger) (server.URLStorage, func()) {
+	const perm os.FileMode = 0600
+	file, err := os.OpenFile(conf.FileStoragePath, os.O_RDWR|os.O_CREATE|os.O_APPEND, perm)
+	if err != nil {
+		logger.Fatal(err.Error(), zap.String(eventKey, "open file"))
+	}
+
+	store, err := store.NewFileStorage(file)
+	if err != nil {
+		logger.Fatal(err.Error(), zap.String(eventKey, "create storage"))
+	}
+
+	return store, func() { _ = file.Close() }
 }
 
 func tearDown(logger *zap.Logger) {

@@ -26,10 +26,7 @@ func TestConfigFromArgs(t *testing.T) {
 			args: []string{
 				"app.exe",
 			},
-			want: Config{
-				ServerAddress: defaultServerAddr,
-				BaseURL:       defaultBaseURL,
-			},
+			want: Config{},
 		},
 		{
 			name: "args contain server address",
@@ -40,7 +37,6 @@ func TestConfigFromArgs(t *testing.T) {
 			},
 			want: Config{
 				ServerAddress: ":8000",
-				BaseURL:       defaultBaseURL,
 			},
 		},
 		{
@@ -63,14 +59,24 @@ func TestConfigFromArgs(t *testing.T) {
 				"http://localhost:3000",
 			},
 			want: Config{
-				ServerAddress: defaultServerAddr,
-				BaseURL:       "http://localhost:3000",
+				BaseURL: "http://localhost:3000",
+			},
+		},
+		{
+			name: "args contain file storage path",
+			args: []string{
+				"app.exe",
+				"-f",
+				"tmp/urls.db",
+			},
+			want: Config{
+				FileStoragePath: "tmp/urls.db",
 			},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			conf := New()
+			conf := Config{}
 			got := conf.FromArgs(tt.args)
 			assert.Equal(t, tt.want, got)
 		})
@@ -110,7 +116,6 @@ func TestConfigFromEnv(t *testing.T) {
 		{
 			name: "env contains server address",
 			want: Config{
-				BaseURL:       defaultBaseURL,
 				ServerAddress: ":8080",
 			},
 			env: &testEnvironment{
@@ -122,8 +127,7 @@ func TestConfigFromEnv(t *testing.T) {
 		{
 			name: "env contains base URL",
 			want: Config{
-				BaseURL:       "shrt.ru",
-				ServerAddress: defaultServerAddr,
+				BaseURL: "shrt.ru",
 			},
 			env: &testEnvironment{
 				m: map[string]string{
@@ -131,11 +135,36 @@ func TestConfigFromEnv(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "env contains file storage path",
+			want: Config{
+				FileStoragePath: "tmp/file.db",
+			},
+			env: &testEnvironment{
+				m: map[string]string{
+					"FILE_STORAGE_PATH": "tmp/file.db",
+				},
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := New().FromEnv(tt.env)
+			got := Config{}.FromEnv(tt.env)
 			assert.Equal(t, tt.want, got)
 		})
 	}
+}
+
+func TestNew(t *testing.T) {
+	t.Run("new", func(t *testing.T) {
+		want := Config{
+			ServerAddress:   defaultServerAddr,
+			BaseURL:         defaultBaseURL,
+			FileStoragePath: defaultFileStoragePath,
+		}
+
+		got := New()
+
+		assert.Equal(t, want, got)
+	})
 }

@@ -27,14 +27,14 @@ const (
 	failedToWriterResponseMessage = "failed to prepare response"
 )
 
-type URLStore interface {
+type URLStorage interface {
 	Get(shortURL string) (string, error)
 
 	Add(shortURL, url string)
 }
 
 type Server struct {
-	store   URLStore
+	storage URLStorage
 	router  chi.Router
 	baseURL string
 }
@@ -47,10 +47,10 @@ type ShortenResponse struct {
 	Result string `json:"result"`
 }
 
-func New(store URLStore, baseURL string) *Server {
+func New(storage URLStorage, baseURL string) *Server {
 	r := chi.NewRouter()
 	s := &Server{
-		store,
+		storage,
 		r,
 		baseURL,
 	}
@@ -81,7 +81,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) redirect(w http.ResponseWriter, r *http.Request) {
 	key := chi.URLParam(r, "key")
-	url, err := s.store.Get(key)
+	url, err := s.storage.Get(key)
 
 	if errors.Is(err, model.ErrNotFound) {
 		notFound(w, err.Error())
@@ -106,7 +106,7 @@ func (s *Server) shorten(w http.ResponseWriter, r *http.Request) {
 	}
 
 	shortURL := shortener.Shorten(uuid.New().ID())
-	s.store.Add(shortURL, string(body))
+	s.storage.Add(shortURL, string(body))
 
 	w.Header().Set(contentTypeHeader, textPlain)
 	w.WriteHeader(http.StatusCreated)
@@ -134,7 +134,7 @@ func (s *Server) shortenAPI(w http.ResponseWriter, r *http.Request) {
 	}
 
 	shortURL := shortener.Shorten(uuid.New().ID())
-	s.store.Add(shortURL, req.URL)
+	s.storage.Add(shortURL, req.URL)
 
 	resp := ShortenResponse{Result: s.baseURL + "/" + shortURL}
 	content, err := json.Marshal(resp)

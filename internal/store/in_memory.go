@@ -6,15 +6,15 @@ import (
 	"github.com/nestjam/yap-shortener/internal/model"
 )
 
-type InMemory struct {
+type InMemoryStorage struct {
 	m sync.Map
 }
 
-func NewInMemory() *InMemory {
-	return &InMemory{}
+func NewInMemory() *InMemoryStorage {
+	return &InMemoryStorage{}
 }
 
-func (s *InMemory) Get(shortURL string) (string, error) {
+func (s *InMemoryStorage) Get(shortURL string) (string, error) {
 	url, ok := s.m.Load(shortURL)
 	if !ok {
 		return "", model.ErrNotFound
@@ -22,6 +22,6 @@ func (s *InMemory) Get(shortURL string) (string, error) {
 	return url.(string), nil
 }
 
-func (s *InMemory) Add(shortURL, url string) {
+func (s *InMemoryStorage) Add(shortURL, url string) {
 	s.m.Store(shortURL, url)
 }
