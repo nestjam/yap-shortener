@@ -15,6 +15,7 @@ import (
 	"github.com/nestjam/yap-shortener/internal/store"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
 )
 
 const (
@@ -67,7 +68,7 @@ func TestRedirect(t *testing.T) {
 		}
 		testStore := NewTestStore(baseURL)
 		testStore.m["EwHXdJfB"] = testURL
-		sut := New(testStore, baseURL)
+		sut := New(testStore, baseURL, zap.NewNop())
 		request := newGetRequest("EwHXdJfB")
 		response := httptest.NewRecorder()
 
@@ -86,7 +87,7 @@ func TestRedirect(t *testing.T) {
 		request := newGetRequest("")
 		response := httptest.NewRecorder()
 		testStore := NewTestStore(baseURL)
-		sut := New(testStore, baseURL)
+		sut := New(testStore, baseURL, zap.NewNop())
 
 		sut.ServeHTTP(response, request)
 
@@ -101,7 +102,7 @@ func TestRedirect(t *testing.T) {
 			body: "not found",
 		}
 		testStore := NewTestStore(baseURL)
-		sut := New(testStore, baseURL)
+		sut := New(testStore, baseURL, zap.NewNop())
 		request := newGetRequest("EwHXdJfB")
 		response := httptest.NewRecorder()
 
@@ -118,7 +119,7 @@ func TestRedirect(t *testing.T) {
 			body: "not found",
 		}
 		testStore := store.NewInMemory()
-		sut := New(testStore, baseURL)
+		sut := New(testStore, baseURL, zap.NewNop())
 		request := newGetRequest("EwHXdJfB")
 		response := httptest.NewRecorder()
 
@@ -136,7 +137,7 @@ func TestShorten(t *testing.T) {
 			code: http.StatusCreated,
 		}
 		testStore := NewTestStore(baseURL)
-		sut := New(testStore, baseURL)
+		sut := New(testStore, baseURL, zap.NewNop())
 		request := newShortenRequest(testURL)
 		response := httptest.NewRecorder()
 
@@ -151,7 +152,7 @@ func TestShorten(t *testing.T) {
 			code: http.StatusUnsupportedMediaType,
 		}
 		testStore := NewTestStore(baseURL)
-		sut := New(testStore, baseURL)
+		sut := New(testStore, baseURL, zap.NewNop())
 		request := newShortenRequest(testURL)
 		request.Header.Set(contentTypeHeader, "application/xml")
 		response := httptest.NewRecorder()
@@ -167,7 +168,7 @@ func TestShorten(t *testing.T) {
 			code: http.StatusCreated,
 		}
 		testStore := NewTestStore(baseURL)
-		sut := New(testStore, baseURL)
+		sut := New(testStore, baseURL, zap.NewNop())
 		request := newShortenRequest(testURL)
 		response := httptest.NewRecorder()
 
@@ -193,7 +194,7 @@ func TestShorten(t *testing.T) {
 			body: urlIsEmptyMessage,
 		}
 		testStore := NewTestStore(baseURL)
-		sut := New(testStore, baseURL)
+		sut := New(testStore, baseURL, zap.NewNop())
 		request := newShortenRequest("")
 		response := httptest.NewRecorder()
 
@@ -205,7 +206,7 @@ func TestShorten(t *testing.T) {
 
 	t.Run("client accepts br and gzip encodings", func(t *testing.T) {
 		testStore := NewTestStore(baseURL)
-		sut := New(testStore, baseURL)
+		sut := New(testStore, baseURL, zap.NewNop())
 		request := newShortenRequest(testURL)
 		request.Header.Set(acceptEncodingHeader, "br, "+gzipEncoding)
 		response := httptest.NewRecorder()
@@ -220,7 +221,7 @@ func TestShorten(t *testing.T) {
 
 	t.Run("client sends content type x-gzip", func(t *testing.T) {
 		testStore := NewTestStore(baseURL)
-		sut := New(testStore, baseURL)
+		sut := New(testStore, baseURL, zap.NewNop())
 		request := newEncodedShortenRequest(t, testURL)
 		response := httptest.NewRecorder()
 
@@ -235,7 +236,7 @@ func TestShorten(t *testing.T) {
 func TestShortenAPI(t *testing.T) {
 	t.Run("shorten url", func(t *testing.T) {
 		testStore := NewTestStore(baseURL)
-		sut := New(testStore, baseURL)
+		sut := New(testStore, baseURL, zap.NewNop())
 		request := newShortenAPIRequest(t, testURL)
 		response := httptest.NewRecorder()
 
@@ -251,7 +252,7 @@ func TestShortenAPI(t *testing.T) {
 
 	t.Run("content type is not application/json", func(t *testing.T) {
 		testStore := NewTestStore(baseURL)
-		sut := New(testStore, baseURL)
+		sut := New(testStore, baseURL, zap.NewNop())
 		request := newShortenAPIRequest(t, testURL)
 		request.Header.Set(contentTypeHeader, textPlain)
 		response := httptest.NewRecorder()
@@ -263,7 +264,7 @@ func TestShortenAPI(t *testing.T) {
 
 	t.Run("shorten same url twice", func(t *testing.T) {
 		testStore := NewTestStore(baseURL)
-		sut := New(testStore, baseURL)
+		sut := New(testStore, baseURL, zap.NewNop())
 		request := newShortenAPIRequest(t, testURL)
 		response := httptest.NewRecorder()
 
@@ -287,7 +288,7 @@ func TestShortenAPI(t *testing.T) {
 
 	t.Run("url is empty", func(t *testing.T) {
 		testStore := NewTestStore(baseURL)
-		sut := New(testStore, baseURL)
+		sut := New(testStore, baseURL, zap.NewNop())
 		request := newShortenAPIRequest(t, "")
 		response := httptest.NewRecorder()
 
@@ -299,7 +300,7 @@ func TestShortenAPI(t *testing.T) {
 
 	t.Run("request json is invalid", func(t *testing.T) {
 		testStore := NewTestStore(baseURL)
-		sut := New(testStore, baseURL)
+		sut := New(testStore, baseURL, zap.NewNop())
 		request := httptest.NewRequest(http.MethodPost, "/api/shorten", strings.NewReader("{{]}"))
 		request.Header.Set(contentTypeHeader, applicationJSON)
 		response := httptest.NewRecorder()
@@ -312,7 +313,7 @@ func TestShortenAPI(t *testing.T) {
 
 	t.Run("client accepts br and gzip encodings", func(t *testing.T) {
 		testStore := NewTestStore(baseURL)
-		sut := New(testStore, baseURL)
+		sut := New(testStore, baseURL, zap.NewNop())
 		request := newShortenAPIRequest(t, testURL)
 		request.Header.Set(acceptEncodingHeader, "br, "+gzipEncoding)
 		response := httptest.NewRecorder()
@@ -327,7 +328,7 @@ func TestShortenAPI(t *testing.T) {
 
 	t.Run("client does not accept encoding", func(t *testing.T) {
 		testStore := NewTestStore(baseURL)
-		sut := New(testStore, baseURL)
+		sut := New(testStore, baseURL, zap.NewNop())
 		request := newShortenAPIRequest(t, testURL)
 		response := httptest.NewRecorder()
 
@@ -338,7 +339,7 @@ func TestShortenAPI(t *testing.T) {
 
 	t.Run("client sends encoded content", func(t *testing.T) {
 		testStore := NewTestStore(baseURL)
-		sut := New(testStore, baseURL)
+		sut := New(testStore, baseURL, zap.NewNop())
 		request := newEncodedShortenAPIRequest(t, testURL)
 		response := httptest.NewRecorder()
 
@@ -354,7 +355,7 @@ func TestServeHTTP(t *testing.T) {
 	t.Run("put method not allowed", func(t *testing.T) {
 		want := http.StatusMethodNotAllowed
 		testStore := NewTestStore(baseURL)
-		sut := New(testStore, baseURL)
+		sut := New(testStore, baseURL, zap.NewNop())
 		request := newPutRequest(testURL)
 		response := httptest.NewRecorder()
 

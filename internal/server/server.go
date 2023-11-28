@@ -15,6 +15,7 @@ import (
 	"github.com/nestjam/yap-shortener/internal/log"
 	"github.com/nestjam/yap-shortener/internal/model"
 	"github.com/nestjam/yap-shortener/internal/shortener"
+	"go.uber.org/zap"
 )
 
 const (
@@ -48,7 +49,7 @@ type ShortenResponse struct {
 	Result string `json:"result"`
 }
 
-func New(storage URLStorage, baseURL string) *Server {
+func New(storage URLStorage, baseURL string, logger *zap.Logger) *Server {
 	r := chi.NewRouter()
 	s := &Server{
 		storage,
@@ -56,7 +57,7 @@ func New(storage URLStorage, baseURL string) *Server {
 		baseURL,
 	}
 
-	r.Use(log.RequestResponseLogger)
+	r.Use(log.RequestResponseLogger(logger))
 
 	r.Group(func(r chi.Router) {
 		r.Use(middleware.AllowContentType(applicationJSON))

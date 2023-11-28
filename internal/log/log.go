@@ -18,22 +18,17 @@ type loggingResponseWriter struct {
 	responseData *responseData
 }
 
-var (
-	Logger *zap.Logger = zap.NewNop()
-)
-
-func Initialize() error {
-	const op = "initializing logger"
+func NewProductionLogger() (*zap.Logger, error) {
+	const op = "new production logger"
 	config := zap.NewProductionConfig()
 	config.Level = zap.NewAtomicLevelAt(zap.InfoLevel)
 	logger, err := config.Build()
 
 	if err != nil {
-		return errorf(op, err)
+		return nil, errorf(op, err)
 	}
 
-	Logger = logger
-	return nil
+	return logger, nil
 }
 
 func errorf(op string, err error) error {
@@ -57,28 +52,30 @@ func (w *loggingResponseWriter) WriteHeader(statusCode int) {
 	w.responseData.status = statusCode
 }
 
-func RequestResponseLogger(h http.Handler) http.Handler {
-	log := func(w http.ResponseWriter, r *http.Request) {
-		start := time.Now()
-		resp := &responseData{
-			status: 0,
-			size:   0,
-		}
-		lw := loggingResponseWriter{
-			ResponseWriter: w,
-			responseData:   resp,
-		}
+func RequestResponseLogger(logger *zap.Logger) func(h http.Handler) http.Handler {
+	return func(h http.Handler) http.Handler {
+		log := func(w http.ResponseWriter, r *http.Request) {
+			start := time.Now()
+			resp := &responseData{
+				status: 0,
+				size:   0,
+			}
+			lw := loggingResponseWriter{
+				ResponseWriter: w,
+				responseData:   resp,
+			}
 
-		h.ServeHTTP(&lw, r)
+			h.ServeHTTP(&lw, r)
 
-		duration := time.Since(start)
-		Logger.Info("",
-			zap.String("uri", r.RequestURI),
-			zap.String("method", r.Method),
-			zap.Int("status", resp.status),
-			zap.Duration("duration", duration),
-			zap.Int("size", resp.size),
-		)
+			duration := time.Since(start)
+			logger.Info("",
+				zap.String("uri", r.RequestURI),
+				zap.String("method", r.Method),
+				zap.Int("status", resp.status),
+				zap.Duration("duration", duration),
+				zap.Int("size", resp.size),
+			)
+		}
+		return http.HandlerFunc(log)
 	}
-	return http.HandlerFunc(log)
 }

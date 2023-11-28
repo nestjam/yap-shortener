@@ -21,13 +21,13 @@ func main() {
 		FromArgs(os.Args).
 		FromEnv(env.New())
 
-	logger := setupLogger()
+	logger := newLogger()
 	defer tearDown(logger)
 
 	storage, tearDownStorage := newStorage(config, logger)
 	defer tearDownStorage()
 
-	server := server.New(storage, config.BaseURL)
+	server := server.New(storage, config.BaseURL, logger)
 	listenAndServe(config.ServerAddress, server, logger)
 }
 
@@ -67,9 +67,12 @@ func tearDown(logger *zap.Logger) {
 	_ = logger.Sync()
 }
 
-func setupLogger() *zap.Logger {
-	if err := log.Initialize(); err != nil {
+func newLogger() *zap.Logger {
+	logger, err := log.NewProductionLogger()
+
+	if err != nil {
 		panic(err)
 	}
-	return log.Logger
+
+	return logger
 }
