@@ -1,6 +1,10 @@
 package config
 
-import "flag"
+import (
+	"flag"
+	"os"
+	"path"
+)
 
 type Config struct {
 	ServerAddress   string
@@ -9,10 +13,11 @@ type Config struct {
 }
 
 const (
-	defaultServerAddr      = ":8080"
-	defaultBaseURL         = "http://localhost:8080"
-	defaultFileStoragePath = "/tmp/short-url-db.json"
+	defaultServerAddr = ":8080"
+	defaultBaseURL    = "http://localhost:8080"
 )
+
+var defaultFileStoragePath string = path.Join(os.TempDir(), "short-url-db.json")
 
 type Environment interface {
 	LookupEnv(key string) (string, bool)
