@@ -8,17 +8,15 @@ import (
 	"go.uber.org/zap"
 )
 
-type (
-	responseData struct {
-		status int
-		size   int
-	}
+type responseData struct {
+	status int
+	size   int
+}
 
-	loggingResponseWriter struct {
-		http.ResponseWriter
-		responseData *responseData
-	}
-)
+type loggingResponseWriter struct {
+	http.ResponseWriter
+	responseData *responseData
+}
 
 var (
 	Logger *zap.Logger = zap.NewNop()
