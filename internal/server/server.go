@@ -3,6 +3,7 @@ package server
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"strconv"
@@ -110,7 +111,7 @@ func (s *Server) shorten(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set(contentTypeHeader, textPlain)
 	w.WriteHeader(http.StatusCreated)
-	_, err = w.Write([]byte(s.baseURL + "/" + shortURL))
+	_, err = w.Write([]byte(joinPath(s.baseURL, shortURL)))
 
 	if err != nil {
 		internalError(w, failedToWriterResponseMessage)
@@ -136,7 +137,7 @@ func (s *Server) shortenAPI(w http.ResponseWriter, r *http.Request) {
 	shortURL := shortener.Shorten(uuid.New().ID())
 	s.storage.Add(shortURL, req.URL)
 
-	resp := ShortenResponse{Result: s.baseURL + "/" + shortURL}
+	resp := ShortenResponse{Result: joinPath(s.baseURL, shortURL)}
 	content, err := json.Marshal(resp)
 
 	if err != nil {
@@ -153,6 +154,10 @@ func (s *Server) shortenAPI(w http.ResponseWriter, r *http.Request) {
 		internalError(w, failedToWriterResponseMessage)
 		return
 	}
+}
+
+func joinPath(base, elem string) string {
+	return fmt.Sprintf("%s/%s", base, elem)
 }
 
 func badRequest(w http.ResponseWriter, err string) {
