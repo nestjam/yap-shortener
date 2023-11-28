@@ -3,7 +3,6 @@ package main
 import (
 	"net/http"
 	"os"
-	"strings"
 
 	conf "github.com/nestjam/yap-shortener/internal/config"
 	env "github.com/nestjam/yap-shortener/internal/config/environment"
