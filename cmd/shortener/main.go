@@ -6,9 +6,8 @@ import (
 
 	conf "github.com/nestjam/yap-shortener/internal/config"
 	env "github.com/nestjam/yap-shortener/internal/config/environment"
-	"github.com/nestjam/yap-shortener/internal/log"
+	factory "github.com/nestjam/yap-shortener/internal/factory"
 	"github.com/nestjam/yap-shortener/internal/server"
-	"github.com/nestjam/yap-shortener/internal/store"
 	"go.uber.org/zap"
 )
 
@@ -21,10 +20,10 @@ func main() {
 		FromArgs(os.Args).
 		FromEnv(env.New())
 
-	logger := newLogger()
-	defer tearDown(logger)
+	logger, tearDownLogger := factory.NewLogger()
+	defer tearDownLogger()
 
-	storage, tearDownStorage := newStorage(config, logger)
+	storage, tearDownStorage := factory.NewStorage(config, logger)
 	defer tearDownStorage()
 
 	server := server.New(storage, config.BaseURL, logger)
@@ -36,43 +35,4 @@ func listenAndServe(address string, server *server.Server, logger *zap.Logger) {
 	if err := http.ListenAndServe(address, server); err != nil {
 		logger.Fatal(err.Error(), zap.String(eventKey, "start server"))
 	}
-}
-
-func newStorage(conf conf.Config, logger *zap.Logger) (server.URLStorage, func()) {
-	if conf.FileStoragePath == "" {
-		logger.Info("Using in-memory storage")
-		return store.NewInMemory(), func() {}
-	}
-
-	logger.Info("Using file storage", zap.String("path", conf.FileStoragePath))
-	return newFileStorage(conf, logger)
-}
-
-func newFileStorage(conf conf.Config, logger *zap.Logger) (server.URLStorage, func()) {
-	const ownerReadWritePermission os.FileMode = 0600
-	file, err := os.OpenFile(conf.FileStoragePath, os.O_RDWR|os.O_CREATE|os.O_APPEND, ownerReadWritePermission)
-	if err != nil {
-		logger.Fatal(err.Error(), zap.String(eventKey, "open file"))
-	}
-
-	store, err := store.NewFileStorage(file)
-	if err != nil {
-		logger.Fatal(err.Error(), zap.String(eventKey, "create storage"))
-	}
-
-	return store, func() { _ = file.Close() }
-}
-
-func tearDown(logger *zap.Logger) {
-	_ = logger.Sync()
-}
-
-func newLogger() *zap.Logger {
-	logger, err := log.NewProductionLogger()
-
-	if err != nil {
-		panic(err)
-	}
-
-	return logger
 }
