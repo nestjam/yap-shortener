@@ -1,10 +1,10 @@
 package factory
 
 import (
+	"fmt"
 	"os"
 
 	conf "github.com/nestjam/yap-shortener/internal/config"
-	"github.com/nestjam/yap-shortener/internal/log"
 	"github.com/nestjam/yap-shortener/internal/server"
 	"github.com/nestjam/yap-shortener/internal/store"
 	"go.uber.org/zap"
@@ -40,11 +40,24 @@ func newFileStorage(conf conf.Config, logger *zap.Logger) (server.URLStorage, fu
 }
 
 func NewLogger() (*zap.Logger, func()) {
-	logger, err := log.NewProductionLogger()
+	logger, err := newProductionLogger()
 
 	if err != nil {
 		panic(err)
 	}
 
 	return logger, func() { _ = logger.Sync() }
+}
+
+func newProductionLogger() (*zap.Logger, error) {
+	const op = "new production logger"
+	config := zap.NewProductionConfig()
+	config.Level = zap.NewAtomicLevelAt(zap.InfoLevel)
+	logger, err := config.Build()
+
+	if err != nil {
+		return nil, fmt.Errorf("%s: %w", op, err)
+	}
+
+	return logger, nil
 }

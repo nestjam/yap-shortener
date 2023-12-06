@@ -8,11 +8,10 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/go-chi/chi/middleware"
+	chimiddleware "github.com/go-chi/chi/middleware"
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
-	"github.com/nestjam/yap-shortener/internal/compress"
-	"github.com/nestjam/yap-shortener/internal/log"
+	"github.com/nestjam/yap-shortener/internal/middleware"
 	"github.com/nestjam/yap-shortener/internal/model"
 	"github.com/nestjam/yap-shortener/internal/shortener"
 	"go.uber.org/zap"
@@ -57,18 +56,18 @@ func New(storage URLStorage, baseURL string, logger *zap.Logger) *Server {
 		baseURL,
 	}
 
-	r.Use(log.RequestResponseLogger(logger))
+	r.Use(middleware.ResponseLogger(logger))
 
 	r.Group(func(r chi.Router) {
-		r.Use(middleware.AllowContentType(applicationJSON))
-		r.Use(compress.RequestDecoder, compress.ResponseEncoder)
+		r.Use(chimiddleware.AllowContentType(applicationJSON))
+		r.Use(middleware.RequestDecoder, middleware.ResponseEncoder)
 
 		r.Post("/api/shorten", s.shortenAPI)
 	})
 
 	r.Group(func(r chi.Router) {
-		r.Use(middleware.AllowContentType(textPlain, applicationGZIP))
-		r.Use(compress.RequestDecoder, compress.ResponseEncoder)
+		r.Use(chimiddleware.AllowContentType(textPlain, applicationGZIP))
+		r.Use(middleware.RequestDecoder, middleware.ResponseEncoder)
 
 		r.Get("/{key}", s.redirect)
 		r.Post("/", s.shorten)

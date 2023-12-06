@@ -1,4 +1,4 @@
-package log
+package middleware
 
 import (
 	"fmt"
@@ -18,29 +18,12 @@ type loggingResponseWriter struct {
 	responseData *responseData
 }
 
-func NewProductionLogger() (*zap.Logger, error) {
-	const op = "new production logger"
-	config := zap.NewProductionConfig()
-	config.Level = zap.NewAtomicLevelAt(zap.InfoLevel)
-	logger, err := config.Build()
-
-	if err != nil {
-		return nil, errorf(op, err)
-	}
-
-	return logger, nil
-}
-
-func errorf(op string, err error) error {
-	return fmt.Errorf("%s: %w", op, err)
-}
-
 func (w *loggingResponseWriter) Write(b []byte) (int, error) {
 	const op = "logging response"
 	size, err := w.ResponseWriter.Write(b)
 
 	if err != nil {
-		return size, errorf(op, err)
+		return size, fmt.Errorf("%s: %w", op, err)
 	}
 
 	w.responseData.size += size
@@ -52,7 +35,7 @@ func (w *loggingResponseWriter) WriteHeader(statusCode int) {
 	w.responseData.status = statusCode
 }
 
-func RequestResponseLogger(logger *zap.Logger) func(h http.Handler) http.Handler {
+func ResponseLogger(logger *zap.Logger) func(h http.Handler) http.Handler {
 	return func(h http.Handler) http.Handler {
 		log := func(w http.ResponseWriter, r *http.Request) {
 			start := time.Now()
