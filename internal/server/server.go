@@ -32,6 +32,8 @@ type URLStorage interface {
 	Get(shortURL string) (string, error)
 
 	Add(shortURL, url string)
+
+	IsAvailable() bool
 }
 
 type Server struct {
@@ -57,6 +59,10 @@ func New(storage URLStorage, baseURL string, logger *zap.Logger) *Server {
 	}
 
 	r.Use(middleware.ResponseLogger(logger))
+
+	r.Group(func(r chi.Router) {
+		r.Get("/ping", s.ping)
+	})
 
 	r.Group(func(r chi.Router) {
 		r.Use(chimiddleware.AllowContentType(applicationJSON))
@@ -154,6 +160,14 @@ func (s *Server) shortenAPI(w http.ResponseWriter, r *http.Request) {
 		internalError(w, failedToWriterResponseMessage)
 		return
 	}
+}
+
+func (s *Server) ping(w http.ResponseWriter, r *http.Request) {
+	status := http.StatusInternalServerError
+	if s.storage.IsAvailable() {
+		status = http.StatusOK
+	}
+	w.WriteHeader(status)
 }
 
 func joinPath(base, elem string) string {

@@ -25,6 +25,7 @@ const (
 	contentEncodingHeader = "Content-Encoding"
 	gzipEncoding          = "gzip"
 	apiShortenPath        = "/api/shorten"
+	pingPath              = "ping"
 )
 
 type want struct {
@@ -37,12 +38,14 @@ type testURLStore struct {
 	m            map[string]string
 	baseURL      string
 	lastShortURL string
+	isAvailable  bool
 }
 
 func NewTestStore(baseURL string) *testURLStore {
 	return &testURLStore{
-		m:       map[string]string{},
-		baseURL: baseURL,
+		m:           map[string]string{},
+		baseURL:     baseURL,
+		isAvailable: true,
 	}
 }
 
@@ -57,6 +60,10 @@ func (t *testURLStore) Get(shortURL string) (string, error) {
 func (t *testURLStore) Add(shortURL, url string) {
 	t.m[shortURL] = url
 	t.lastShortURL = t.baseURL + "/" + shortURL
+}
+
+func (t *testURLStore) IsAvailable() bool {
+	return t.isAvailable
 }
 
 func TestRedirect(t *testing.T) {
@@ -363,6 +370,36 @@ func TestServeHTTP(t *testing.T) {
 
 		assert.Equal(t, want, response.Code)
 	})
+}
+
+func TestPing(t *testing.T) {
+	t.Run("service is avaiable", func(t *testing.T) {
+		testStore := NewTestStore(baseURL)
+		sut := New(testStore, baseURL, zap.NewNop())
+		request := newPingRequest()
+		response := httptest.NewRecorder()
+
+		sut.ServeHTTP(response, request)
+
+		assert.Equal(t, http.StatusOK, response.Code)
+	})
+
+	t.Run("service is not avaiable", func(t *testing.T) {
+		testStore := NewTestStore(baseURL)
+		testStore.isAvailable = false
+		sut := New(testStore, baseURL, zap.NewNop())
+		request := newPingRequest()
+		response := httptest.NewRecorder()
+
+		sut.ServeHTTP(response, request)
+
+		assert.Equal(t, http.StatusInternalServerError, response.Code)
+	})
+}
+
+func newPingRequest() *http.Request {
+	r := httptest.NewRequest(http.MethodGet, "/"+pingPath, nil)
+	return r
 }
 
 func newGetRequest(shortURL string) *http.Request {

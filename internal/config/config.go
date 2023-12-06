@@ -10,6 +10,7 @@ type Config struct {
 	ServerAddress   string
 	BaseURL         string
 	FileStoragePath string
+	DataSourceName  string
 }
 
 const (
@@ -36,6 +37,7 @@ func (conf Config) FromArgs(args []string) Config {
 	flagSet.StringVar(&conf.ServerAddress, "a", conf.ServerAddress, "server address")
 	flagSet.StringVar(&conf.BaseURL, "b", conf.BaseURL, "base URL")
 	flagSet.StringVar(&conf.FileStoragePath, "f", conf.FileStoragePath, "file storage path")
+	flagSet.StringVar(&conf.DataSourceName, "d", conf.DataSourceName, "data source name")
 
 	_ = flagSet.Parse(args[1:]) // exclude command name
 	return conf
@@ -52,6 +54,10 @@ func (conf Config) FromEnv(env Environment) Config {
 
 	if path, ok := env.LookupEnv("FILE_STORAGE_PATH"); ok {
 		conf.FileStoragePath = path
+	}
+
+	if dsn, ok := env.LookupEnv("DATABASE_DSN"); ok {
+		conf.DataSourceName = dsn
 	}
 
 	return conf

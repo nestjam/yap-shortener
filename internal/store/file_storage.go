@@ -76,3 +76,7 @@ func (f *FileStorage) Add(shortURL, originalURL string) {
 	f.urls = append(f.urls, url)
 	_ = f.encoder.Encode(url)
 }
+
+func (f *FileStorage) IsAvailable() bool {
+	return true
+}

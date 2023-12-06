@@ -15,13 +15,18 @@ const (
 )
 
 func NewStorage(conf conf.Config, logger *zap.Logger) (server.URLStorage, func()) {
-	if conf.FileStoragePath == "" {
-		logger.Info("Using in-memory storage")
+	if conf.DataSourceName != "" {
+		logger.Info("Using sql storage")
 		return store.NewInMemory(), func() {}
 	}
 
-	logger.Info("Using file storage", zap.String("path", conf.FileStoragePath))
-	return newFileStorage(conf, logger)
+	if conf.FileStoragePath != "" {
+		logger.Info("Using file storage", zap.String("path", conf.FileStoragePath))
+		return newFileStorage(conf, logger)
+	}
+
+	logger.Info("Using in-memory storage")
+	return store.NewInMemory(), func() {}
 }
 
 func newFileStorage(conf conf.Config, logger *zap.Logger) (server.URLStorage, func()) {

@@ -25,3 +25,7 @@ func (s *InMemoryStorage) Get(shortURL string) (string, error) {
 func (s *InMemoryStorage) Add(shortURL, url string) {
 	s.m.Store(shortURL, url)
 }
+
+func (s *InMemoryStorage) IsAvailable() bool {
+	return true
+}
