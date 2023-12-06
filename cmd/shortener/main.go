@@ -1,21 +1,38 @@
 package main
 
 import (
-	"log"
 	"net/http"
 	"os"
 
 	conf "github.com/nestjam/yap-shortener/internal/config"
 	env "github.com/nestjam/yap-shortener/internal/config/environment"
+	factory "github.com/nestjam/yap-shortener/internal/factory"
 	"github.com/nestjam/yap-shortener/internal/server"
-	"github.com/nestjam/yap-shortener/internal/store"
+	"go.uber.org/zap"
+)
+
+const (
+	eventKey = "event"
 )
 
 func main() {
 	config := conf.New().
 		FromArgs(os.Args).
 		FromEnv(env.New())
-	store := store.NewInMemory()
-	server := server.New(store, config.BaseURL)
-	log.Fatal(http.ListenAndServe(config.ServerAddress, server))
+
+	logger, tearDownLogger := factory.NewLogger()
+	defer tearDownLogger()
+
+	storage, tearDownStorage := factory.NewStorage(config, logger)
+	defer tearDownStorage()
+
+	server := server.New(storage, config.BaseURL, logger)
+	listenAndServe(config.ServerAddress, server, logger)
+}
+
+func listenAndServe(address string, server *server.Server, logger *zap.Logger) {
+	logger.Info("Running server", zap.String("address", address))
+	if err := http.ListenAndServe(address, server); err != nil {
+		logger.Fatal(err.Error(), zap.String(eventKey, "start server"))
+	}
 }
