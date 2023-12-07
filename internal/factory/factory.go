@@ -6,7 +6,8 @@ import (
 
 	conf "github.com/nestjam/yap-shortener/internal/config"
 	"github.com/nestjam/yap-shortener/internal/server"
-	"github.com/nestjam/yap-shortener/internal/store"
+	f "github.com/nestjam/yap-shortener/internal/store/file"
+	"github.com/nestjam/yap-shortener/internal/store/inmemory"
 	"github.com/nestjam/yap-shortener/internal/store/pgsql"
 	"go.uber.org/zap"
 )
@@ -18,7 +19,7 @@ const (
 func NewStorage(conf conf.Config, logger *zap.Logger) (server.URLStorage, func()) {
 	if conf.DataSourceName != "" {
 		logger.Info("Using sql storage")
-		store := pgsql.NewSQLStorage(conf.DataSourceName)
+		store := pgsql.New(conf.DataSourceName)
 		err := store.Init()
 
 		if err != nil {
@@ -34,7 +35,7 @@ func NewStorage(conf conf.Config, logger *zap.Logger) (server.URLStorage, func()
 	}
 
 	logger.Info("Using in-memory storage")
-	return store.NewInMemory(), func() {}
+	return inmemory.New(), func() {}
 }
 
 func newFileStorage(conf conf.Config, logger *zap.Logger) (server.URLStorage, func()) {
@@ -44,7 +45,7 @@ func newFileStorage(conf conf.Config, logger *zap.Logger) (server.URLStorage, fu
 		logger.Fatal(err.Error(), zap.String(eventKey, "open file"))
 	}
 
-	store, err := store.NewFileStorage(file)
+	store, err := f.New(file)
 	if err != nil {
 		logger.Fatal(err.Error(), zap.String(eventKey, "create storage"))
 	}

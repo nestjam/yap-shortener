@@ -7,17 +7,17 @@ import (
 	"github.com/pkg/errors"
 )
 
-type SQLStorage struct {
+type URLStore struct {
 	connString string
 }
 
-func NewSQLStorage(connString string) *SQLStorage {
-	return &SQLStorage{
+func New(connString string) *URLStore {
+	return &URLStore{
 		connString,
 	}
 }
 
-func (s *SQLStorage) Init() error {
+func (s *URLStore) Init() error {
 	const op = "init store"
 	conn, err := pgx.Connect(context.Background(), s.connString)
 
@@ -40,7 +40,7 @@ func (s *SQLStorage) Init() error {
 	return nil
 }
 
-func (s *SQLStorage) Get(shortURL string) (string, error) {
+func (s *URLStore) Get(shortURL string) (string, error) {
 	const op = "get original url"
 	conn, err := pgx.Connect(context.Background(), s.connString)
 
@@ -61,7 +61,7 @@ func (s *SQLStorage) Get(shortURL string) (string, error) {
 	return originalURL, nil
 }
 
-func (s *SQLStorage) Add(shortURL, url string) {
+func (s *URLStore) Add(shortURL, url string) {
 	conn, _ := pgx.Connect(context.Background(), s.connString)
 
 	defer func() {
@@ -72,7 +72,7 @@ func (s *SQLStorage) Add(shortURL, url string) {
 		shortURL, url)
 }
 
-func (s *SQLStorage) IsAvailable() bool {
+func (s *URLStore) IsAvailable() bool {
 	conn, err := pgx.Connect(context.Background(), s.connString)
 
 	if err != nil {

@@ -12,7 +12,7 @@ import (
 	"testing"
 
 	"github.com/nestjam/yap-shortener/internal/model"
-	"github.com/nestjam/yap-shortener/internal/store"
+	"github.com/nestjam/yap-shortener/internal/store/inmemory"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
@@ -125,7 +125,7 @@ func TestRedirect(t *testing.T) {
 			code: http.StatusNotFound,
 			body: "not found",
 		}
-		testStore := store.NewInMemory()
+		testStore := inmemory.New()
 		sut := New(testStore, baseURL, zap.NewNop())
 		request := newGetRequest("EwHXdJfB")
 		response := httptest.NewRecorder()

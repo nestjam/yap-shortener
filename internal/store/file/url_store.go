@@ -1,4 +1,4 @@
-package store
+package file
 
 import (
 	"encoding/json"
@@ -8,7 +8,7 @@ import (
 	"github.com/nestjam/yap-shortener/internal/model"
 )
 
-type FileStorage struct {
+type URLStore struct {
 	encoder *json.Encoder
 	urls    []StoredURL
 }
@@ -19,14 +19,14 @@ type StoredURL struct {
 	ID          int    `json:"uuid"`
 }
 
-func NewFileStorage(rw io.ReadWriter) (*FileStorage, error) {
+func New(rw io.ReadWriter) (*URLStore, error) {
 	urls, err := getURLs(rw)
 
 	if err != nil {
 		return nil, fmt.Errorf("new file storage: %w", err)
 	}
 
-	return &FileStorage{
+	return &URLStore{
 		json.NewEncoder(rw),
 		urls,
 	}, nil
@@ -50,7 +50,7 @@ func getURLs(rw io.ReadWriter) ([]StoredURL, error) {
 	return urls, nil
 }
 
-func (f *FileStorage) Get(shortURL string) (string, error) {
+func (f *URLStore) Get(shortURL string) (string, error) {
 	if url, ok := f.find(shortURL); ok {
 		return url.OriginalURL, nil
 	}
@@ -58,7 +58,7 @@ func (f *FileStorage) Get(shortURL string) (string, error) {
 	return "", model.ErrNotFound
 }
 
-func (f *FileStorage) find(shortURL string) (*StoredURL, bool) {
+func (f *URLStore) find(shortURL string) (*StoredURL, bool) {
 	for i := 0; i < len(f.urls); i++ {
 		if f.urls[i].ShortURL == shortURL {
 			return &f.urls[i], true
@@ -67,7 +67,7 @@ func (f *FileStorage) find(shortURL string) (*StoredURL, bool) {
 	return nil, false
 }
 
-func (f *FileStorage) Add(shortURL, originalURL string) {
+func (f *URLStore) Add(shortURL, originalURL string) {
 	url := StoredURL{
 		ID:          len(f.urls),
 		ShortURL:    shortURL,
@@ -77,6 +77,6 @@ func (f *FileStorage) Add(shortURL, originalURL string) {
 	_ = f.encoder.Encode(url)
 }
 
-func (f *FileStorage) IsAvailable() bool {
+func (f *URLStore) IsAvailable() bool {
 	return true
 }

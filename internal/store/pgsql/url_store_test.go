@@ -60,14 +60,14 @@ func TestIsAvailable(t *testing.T) {
 	})
 }
 
-func NewStorage(t *testing.T) (*SQLStorage, func()) {
+func NewStorage(t *testing.T) (*URLStore, func()) {
 	t.Helper()
 
 	if !pingDB(t, connString) {
 		t.Skip("Skipping test: unavailable database.")
 	}
 
-	store := NewSQLStorage(connString)
+	store := New(connString)
 	err := store.Init()
 
 	require.NoError(t, err)

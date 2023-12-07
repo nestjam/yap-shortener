@@ -1,4 +1,4 @@
-package store
+package file
 
 import (
 	"bytes"
@@ -17,7 +17,7 @@ func TestGet(t *testing.T) {
 			{ID: 2, ShortURL: "def", OriginalURL: "http://yandex.ru"},
 		}
 		rw := getReadWriter(t, urls)
-		sut, _ := NewFileStorage(rw)
+		sut, _ := New(rw)
 
 		for _, url := range urls {
 			got, err := sut.Get(url.ShortURL)
@@ -30,7 +30,7 @@ func TestGet(t *testing.T) {
 	t.Run("original url is not stored", func(t *testing.T) {
 		urls := []StoredURL{}
 		rw := getReadWriter(t, urls)
-		sut, _ := NewFileStorage(rw)
+		sut, _ := New(rw)
 
 		_, err := sut.Get("abc")
 		assert.ErrorIs(t, err, model.ErrNotFound)
@@ -39,7 +39,7 @@ func TestGet(t *testing.T) {
 	t.Run("invalid data", func(t *testing.T) {
 		data := "invalid_data"
 		rw := bytes.NewBuffer([]byte(data))
-		_, err := NewFileStorage(rw)
+		_, err := New(rw)
 
 		assert.Error(t, err)
 	})
@@ -54,7 +54,7 @@ func TestAdd(t *testing.T) {
 		want := StoredURL{ID: 0, ShortURL: shortURL, OriginalURL: originalURL}
 		urls := []StoredURL{}
 		rw := getReadWriter(t, urls)
-		sut, _ := NewFileStorage(rw)
+		sut, _ := New(rw)
 
 		sut.Add(shortURL, originalURL)
 
