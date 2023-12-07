@@ -15,14 +15,12 @@ func TestURLStore(t *testing.T) {
 	if testing.Short() {
 		t.Skip("Skipping long-running test.")
 	}
+	if !pingDB(t, connString) {
+		t.Skip("Skipping test: unavailable database.")
+	}
 	domain.URLStoreContract{
 		NewURLStore: func() (domain.URLStore, func()) {
 			t.Helper()
-
-			if !pingDB(t, connString) {
-				t.Skip("Skipping test: unavailable database.")
-			}
-
 			store := New(connString)
 			err := store.Init()
 
