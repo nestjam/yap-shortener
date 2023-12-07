@@ -11,8 +11,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/nestjam/yap-shortener/internal/model"
-	"github.com/nestjam/yap-shortener/internal/store/inmemory"
+	"github.com/nestjam/yap-shortener/internal/domain"
+	"github.com/nestjam/yap-shortener/internal/persistance/inmemory"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
@@ -52,7 +52,7 @@ func NewTestStore(baseURL string) *testURLStore {
 func (t *testURLStore) Get(shortURL string) (string, error) {
 	v, ok := t.m[shortURL]
 	if !ok {
-		return "", model.ErrNotFound
+		return "", domain.ErrNotFound
 	}
 	return v, nil
 }

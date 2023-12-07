@@ -5,10 +5,10 @@ import (
 	"os"
 
 	conf "github.com/nestjam/yap-shortener/internal/config"
-	"github.com/nestjam/yap-shortener/internal/server"
-	f "github.com/nestjam/yap-shortener/internal/store/file"
-	"github.com/nestjam/yap-shortener/internal/store/inmemory"
-	"github.com/nestjam/yap-shortener/internal/store/pgsql"
+	"github.com/nestjam/yap-shortener/internal/domain"
+	f "github.com/nestjam/yap-shortener/internal/persistance/file"
+	"github.com/nestjam/yap-shortener/internal/persistance/inmemory"
+	"github.com/nestjam/yap-shortener/internal/persistance/pgsql"
 	"go.uber.org/zap"
 )
 
@@ -16,7 +16,7 @@ const (
 	eventKey = "event"
 )
 
-func NewStorage(conf conf.Config, logger *zap.Logger) (server.URLStorage, func()) {
+func NewStorage(conf conf.Config, logger *zap.Logger) (domain.URLStore, func()) {
 	if conf.DataSourceName != "" {
 		logger.Info("Using sql storage")
 		store := pgsql.New(conf.DataSourceName)
@@ -38,7 +38,7 @@ func NewStorage(conf conf.Config, logger *zap.Logger) (server.URLStorage, func()
 	return inmemory.New(), func() {}
 }
 
-func newFileStorage(conf conf.Config, logger *zap.Logger) (server.URLStorage, func()) {
+func newFileStorage(conf conf.Config, logger *zap.Logger) (domain.URLStore, func()) {
 	const ownerReadWritePermission os.FileMode = 0600
 	file, err := os.OpenFile(conf.FileStoragePath, os.O_RDWR|os.O_CREATE|os.O_APPEND, ownerReadWritePermission)
 	if err != nil {

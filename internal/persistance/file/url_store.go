@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/nestjam/yap-shortener/internal/model"
+	"github.com/nestjam/yap-shortener/internal/domain"
 )
 
 type URLStore struct {
@@ -55,7 +55,7 @@ func (f *URLStore) Get(shortURL string) (string, error) {
 		return url.OriginalURL, nil
 	}
 
-	return "", model.ErrNotFound
+	return "", domain.ErrNotFound
 }
 
 func (f *URLStore) find(shortURL string) (*StoredURL, bool) {

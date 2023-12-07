@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/nestjam/yap-shortener/internal/model"
+	"github.com/nestjam/yap-shortener/internal/domain"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -33,7 +33,7 @@ func TestGet(t *testing.T) {
 		sut, _ := New(rw)
 
 		_, err := sut.Get("abc")
-		assert.ErrorIs(t, err, model.ErrNotFound)
+		assert.ErrorIs(t, err, domain.ErrNotFound)
 	})
 
 	t.Run("invalid data", func(t *testing.T) {

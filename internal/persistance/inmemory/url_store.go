@@ -3,7 +3,7 @@ package inmemory
 import (
 	"sync"
 
-	"github.com/nestjam/yap-shortener/internal/model"
+	"github.com/nestjam/yap-shortener/internal/domain"
 )
 
 type URLStore struct {
@@ -17,7 +17,7 @@ func New() *URLStore {
 func (s *URLStore) Get(shortURL string) (string, error) {
 	url, ok := s.m.Load(shortURL)
 	if !ok {
-		return "", model.ErrNotFound
+		return "", domain.ErrNotFound
 	}
 	return url.(string), nil
 }

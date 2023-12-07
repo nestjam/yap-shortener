@@ -11,8 +11,8 @@ import (
 	chimiddleware "github.com/go-chi/chi/middleware"
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
+	"github.com/nestjam/yap-shortener/internal/domain"
 	"github.com/nestjam/yap-shortener/internal/middleware"
-	"github.com/nestjam/yap-shortener/internal/model"
 	"github.com/nestjam/yap-shortener/internal/shortener"
 	"go.uber.org/zap"
 )
@@ -28,16 +28,8 @@ const (
 	failedToWriterResponseMessage = "failed to prepare response"
 )
 
-type URLStorage interface {
-	Get(shortURL string) (string, error)
-
-	Add(shortURL, url string)
-
-	IsAvailable() bool
-}
-
 type Server struct {
-	storage URLStorage
+	storage domain.URLStore
 	router  chi.Router
 	baseURL string
 }
@@ -50,7 +42,7 @@ type ShortenResponse struct {
 	Result string `json:"result"`
 }
 
-func New(storage URLStorage, baseURL string, logger *zap.Logger) *Server {
+func New(storage domain.URLStore, baseURL string, logger *zap.Logger) *Server {
 	r := chi.NewRouter()
 	s := &Server{
 		storage,
@@ -90,7 +82,7 @@ func (s *Server) redirect(w http.ResponseWriter, r *http.Request) {
 	key := chi.URLParam(r, "key")
 	url, err := s.storage.Get(key)
 
-	if errors.Is(err, model.ErrNotFound) {
+	if errors.Is(err, domain.ErrNotFound) {
 		notFound(w, err.Error())
 		return
 	}
