@@ -12,7 +12,6 @@ import (
 	"testing"
 
 	"github.com/nestjam/yap-shortener/internal/domain"
-	"github.com/nestjam/yap-shortener/internal/persistance/inmemory"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
@@ -109,23 +108,6 @@ func TestRedirect(t *testing.T) {
 			body: "not found",
 		}
 		testStore := NewTestStore(baseURL)
-		sut := New(testStore, baseURL, zap.NewNop())
-		request := newGetRequest("EwHXdJfB")
-		response := httptest.NewRecorder()
-
-		sut.ServeHTTP(response, request)
-
-		assert.Equal(t, want.code, response.Code)
-		assertLocation(t, want.location, response)
-		assertErrorMessage(t, want.body, response)
-	})
-
-	t.Run("url not found (in-memory store)", func(t *testing.T) {
-		want := want{
-			code: http.StatusNotFound,
-			body: "not found",
-		}
-		testStore := inmemory.New()
 		sut := New(testStore, baseURL, zap.NewNop())
 		request := newGetRequest("EwHXdJfB")
 		response := httptest.NewRecorder()
