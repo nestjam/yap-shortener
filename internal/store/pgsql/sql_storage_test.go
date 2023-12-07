@@ -12,6 +12,10 @@ import (
 const connString = "postgres://postgres:postgres@localhost:5432/praktikum"
 
 func TestAdd(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping long-running test.")
+	}
+
 	t.Run("add new url", func(t *testing.T) {
 		const (
 			shortURL    = "abc"
@@ -29,6 +33,10 @@ func TestAdd(t *testing.T) {
 }
 
 func TestGet(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping long-running test.")
+	}
+
 	t.Run("original url not found by short url", func(t *testing.T) {
 		sut, tearDown := NewStorage(t)
 		defer tearDown()
@@ -39,6 +47,10 @@ func TestGet(t *testing.T) {
 }
 
 func TestIsAvailable(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping long-running test.")
+	}
+	
 	t.Run("store is available", func(t *testing.T) {
 		sut, tearDown := NewStorage(t)
 		defer tearDown()
