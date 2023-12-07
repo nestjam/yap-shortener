@@ -6,76 +6,33 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/nestjam/yap-shortener/internal/domain"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 const connString = "postgres://postgres:postgres@localhost:5432/praktikum"
 
-func TestAdd(t *testing.T) {
+func TestURLStore(t *testing.T) {
 	if testing.Short() {
 		t.Skip("Skipping long-running test.")
 	}
+	domain.URLStoreContract{
+		NewURLStore: func() (domain.URLStore, func()) {
+			t.Helper()
 
-	t.Run("add new url", func(t *testing.T) {
-		const (
-			shortURL    = "abc"
-			originalURL = "http://example.com"
-		)
-		sut, tearDown := NewStorage(t)
-		defer tearDown()
+			if !pingDB(t, connString) {
+				t.Skip("Skipping test: unavailable database.")
+			}
 
-		sut.Add(shortURL, originalURL)
+			store := New(connString)
+			err := store.Init()
 
-		got, err := sut.Get(shortURL)
-		require.NoError(t, err)
-		assert.Equal(t, originalURL, got)
-	})
-}
+			require.NoError(t, err)
 
-func TestGet(t *testing.T) {
-	if testing.Short() {
-		t.Skip("Skipping long-running test.")
-	}
-
-	t.Run("original url not found by short url", func(t *testing.T) {
-		sut, tearDown := NewStorage(t)
-		defer tearDown()
-
-		_, err := sut.Get("123")
-		assert.ErrorIs(t, err, domain.ErrURLNotFound)
-	})
-}
-
-func TestIsAvailable(t *testing.T) {
-	if testing.Short() {
-		t.Skip("Skipping long-running test.")
-	}
-
-	t.Run("store is available", func(t *testing.T) {
-		sut, tearDown := NewStorage(t)
-		defer tearDown()
-
-		got := sut.IsAvailable()
-		assert.True(t, got)
-	})
-}
-
-func NewStorage(t *testing.T) (*URLStore, func()) {
-	t.Helper()
-
-	if !pingDB(t, connString) {
-		t.Skip("Skipping test: unavailable database.")
-	}
-
-	store := New(connString)
-	err := store.Init()
-
-	require.NoError(t, err)
-
-	return store, func() {
-		dropTable(t)
-	}
+			return store, func() {
+				dropTable(t)
+			}
+		},
+	}.Test(t)
 }
 
 func pingDB(t *testing.T, connString string) bool {
