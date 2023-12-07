@@ -55,7 +55,8 @@ func (s *URLStore) Get(shortURL string) (string, error) {
 
 	var originalURL string
 	row := conn.QueryRow(context.Background(), "SELECT original_url FROM url WHERE short_url=$1", shortURL)
-	if err := row.Scan(&originalURL); err != nil {
+	err = row.Scan(&originalURL)
+	if errors.Is(err, pgx.ErrNoRows) {
 		return "", domain.ErrURLNotFound
 	}
 
