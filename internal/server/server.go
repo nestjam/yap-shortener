@@ -82,7 +82,7 @@ func (s *Server) redirect(w http.ResponseWriter, r *http.Request) {
 	key := chi.URLParam(r, "key")
 	url, err := s.storage.Get(key)
 
-	if errors.Is(err, domain.ErrNotFound) {
+	if errors.Is(err, domain.ErrURLNotFound) {
 		notFound(w, err.Error())
 		return
 	}

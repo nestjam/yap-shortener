@@ -55,7 +55,7 @@ func (f *URLStore) Get(shortURL string) (string, error) {
 		return url.OriginalURL, nil
 	}
 
-	return "", domain.ErrNotFound
+	return "", domain.ErrURLNotFound
 }
 
 func (f *URLStore) find(shortURL string) (*StoredURL, bool) {

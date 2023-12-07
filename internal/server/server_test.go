@@ -51,7 +51,7 @@ func NewTestStore(baseURL string) *testURLStore {
 func (t *testURLStore) Get(shortURL string) (string, error) {
 	v, ok := t.m[shortURL]
 	if !ok {
-		return "", domain.ErrNotFound
+		return "", domain.ErrURLNotFound
 	}
 	return v, nil
 }

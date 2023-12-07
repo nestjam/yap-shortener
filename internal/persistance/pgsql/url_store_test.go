@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/nestjam/yap-shortener/internal/domain"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -42,7 +43,7 @@ func TestGet(t *testing.T) {
 		defer tearDown()
 
 		_, err := sut.Get("123")
-		assert.Error(t, err)
+		assert.ErrorIs(t, err, domain.ErrURLNotFound)
 	})
 }
 

@@ -17,7 +17,7 @@ func New() *URLStore {
 func (s *URLStore) Get(shortURL string) (string, error) {
 	url, ok := s.m.Load(shortURL)
 	if !ok {
-		return "", domain.ErrNotFound
+		return "", domain.ErrURLNotFound
 	}
 	return url.(string), nil
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/nestjam/yap-shortener/internal/domain"
 	"github.com/pkg/errors"
 )
 
@@ -55,7 +56,7 @@ func (s *URLStore) Get(shortURL string) (string, error) {
 	var originalURL string
 	row := conn.QueryRow(context.Background(), "SELECT original_url FROM url WHERE short_url=$1", shortURL)
 	if err := row.Scan(&originalURL); err != nil {
-		return "", errors.Wrapf(err, op)
+		return "", domain.ErrURLNotFound
 	}
 
 	return originalURL, nil

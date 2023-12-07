@@ -3,7 +3,7 @@ package domain
 import "errors"
 
 var (
-	ErrNotFound = errors.New("not found")
+	ErrURLNotFound = errors.New("not found")
 )
 
 type URLStore interface {

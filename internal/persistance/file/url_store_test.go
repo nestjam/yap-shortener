@@ -33,7 +33,7 @@ func TestGet(t *testing.T) {
 		sut, _ := New(rw)
 
 		_, err := sut.Get("abc")
-		assert.ErrorIs(t, err, domain.ErrNotFound)
+		assert.ErrorIs(t, err, domain.ErrURLNotFound)
 	})
 
 	t.Run("invalid data", func(t *testing.T) {
