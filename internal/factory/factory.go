@@ -7,6 +7,7 @@ import (
 	conf "github.com/nestjam/yap-shortener/internal/config"
 	"github.com/nestjam/yap-shortener/internal/server"
 	"github.com/nestjam/yap-shortener/internal/store"
+	"github.com/nestjam/yap-shortener/internal/store/pgsql"
 	"go.uber.org/zap"
 )
 
@@ -17,7 +18,14 @@ const (
 func NewStorage(conf conf.Config, logger *zap.Logger) (server.URLStorage, func()) {
 	if conf.DataSourceName != "" {
 		logger.Info("Using sql storage")
-		return store.NewInMemory(), func() {}
+		store := pgsql.NewSQLStorage(conf.DataSourceName)
+		err := store.Init()
+
+		if err != nil {
+			logger.Fatal("Failed to initialize store", zap.Error(err))
+		}
+
+		return store, func() {}
 	}
 
 	if conf.FileStoragePath != "" {
