@@ -50,7 +50,7 @@ func TestIsAvailable(t *testing.T) {
 	if testing.Short() {
 		t.Skip("Skipping long-running test.")
 	}
-	
+
 	t.Run("store is available", func(t *testing.T) {
 		sut, tearDown := NewStorage(t)
 		defer tearDown()
@@ -62,6 +62,11 @@ func TestIsAvailable(t *testing.T) {
 
 func NewStorage(t *testing.T) (*SQLStorage, func()) {
 	t.Helper()
+
+	if !pingDB(t, connString) {
+		t.Skip("Skipping test: unavailable database.")
+	}
+
 	store := NewSQLStorage(connString)
 	err := store.Init()
 
@@ -70,6 +75,22 @@ func NewStorage(t *testing.T) (*SQLStorage, func()) {
 	return store, func() {
 		dropTable(t)
 	}
+}
+
+func pingDB(t *testing.T, connString string) bool {
+	t.Helper()
+
+	conn, err := pgx.Connect(context.Background(), connString)
+
+	if err != nil {
+		return false
+	}
+
+	defer func() {
+		_ = conn.Close(context.Background())
+	}()
+
+	return conn.Ping(context.Background()) == nil
 }
 
 func dropTable(t *testing.T) {
