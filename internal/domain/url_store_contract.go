@@ -1,6 +1,7 @@
 package domain
 
 import (
+	"context"
 	"errors"
 	"testing"
 
@@ -18,10 +19,10 @@ type URLPair struct {
 }
 
 type URLStore interface {
-	Get(shortURL string) (string, error)
-	Add(shortURL, originalURL string) error
-	AddBatch(pairs []URLPair) error
-	IsAvailable() bool
+	Get(ctx context.Context, shortURL string) (string, error)
+	Add(ctx context.Context, shortURL, originalURL string) error
+	AddBatch(ctx context.Context, pairs []URLPair) error
+	IsAvailable(ctx context.Context) bool
 }
 
 type URLStoreContract struct {
@@ -37,11 +38,11 @@ func (c URLStoreContract) Test(t *testing.T) {
 		sut, tearDown := c.NewURLStore()
 		t.Cleanup(tearDown)
 
-		err := sut.Add(shortURL, originalURL)
+		err := sut.Add(context.Background(), shortURL, originalURL)
 
 		assert.NoError(t, err)
 
-		got, err := sut.Get(shortURL)
+		got, err := sut.Get(context.Background(), shortURL)
 
 		require.NoError(t, err)
 		assert.Equal(t, originalURL, got)
@@ -51,7 +52,7 @@ func (c URLStoreContract) Test(t *testing.T) {
 		sut, tearDown := c.NewURLStore()
 		t.Cleanup(tearDown)
 
-		_, err := sut.Get("123")
+		_, err := sut.Get(context.Background(), "123")
 		assert.ErrorIs(t, err, ErrURLNotFound)
 	})
 
@@ -59,7 +60,7 @@ func (c URLStoreContract) Test(t *testing.T) {
 		sut, tearDown := c.NewURLStore()
 		t.Cleanup(tearDown)
 
-		got := sut.IsAvailable()
+		got := sut.IsAvailable(context.Background())
 		assert.True(t, got)
 	})
 
@@ -77,12 +78,12 @@ func (c URLStoreContract) Test(t *testing.T) {
 		sut, tearDown := c.NewURLStore()
 		t.Cleanup(tearDown)
 
-		err := sut.AddBatch(pairs)
+		err := sut.AddBatch(context.Background(), pairs)
 
 		assert.NoError(t, err)
 
 		for i := 0; i < len(pairs); i++ {
-			got, err := sut.Get(pairs[i].ShortURL)
+			got, err := sut.Get(context.Background(), pairs[i].ShortURL)
 			require.NoError(t, err)
 			assert.Equal(t, pairs[i].OriginalURL, got)
 		}

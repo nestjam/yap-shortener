@@ -24,21 +24,22 @@ func New(connString string) *URLStore {
 
 func (u *URLStore) Init() error {
 	const op = "init store"
+	ctx := context.Background()
 	var err error
-	u.pool, err = initPool(context.Background(), u.connString)
+	u.pool, err = initPool(ctx, u.connString)
 
 	if err != nil {
 		return errors.Wrapf(err, op)
 	}
 
-	conn, err := u.pool.Acquire(context.Background())
+	conn, err := u.pool.Acquire(ctx)
 	defer conn.Release()
 
 	if err != nil {
 		return errors.Wrapf(err, op)
 	}
 
-	_, err = conn.Exec(context.Background(), `CREATE TABLE IF NOT EXISTS url(id SERIAL PRIMARY KEY,
+	_, err = conn.Exec(ctx, `CREATE TABLE IF NOT EXISTS url(id SERIAL PRIMARY KEY,
 		short_url VARCHAR(255),
 		original_url TEXT);`)
 
@@ -77,9 +78,9 @@ func initPool(ctx context.Context, connString string) (*pgxpool.Pool, error) {
 	return pool, nil
 }
 
-func (u *URLStore) Get(shortURL string) (string, error) {
+func (u *URLStore) Get(ctx context.Context, shortURL string) (string, error) {
 	const op = "get original url"
-	conn, err := u.pool.Acquire(context.Background())
+	conn, err := u.pool.Acquire(ctx)
 	defer conn.Release()
 
 	if err != nil {
@@ -87,7 +88,7 @@ func (u *URLStore) Get(shortURL string) (string, error) {
 	}
 
 	var originalURL string
-	row := conn.QueryRow(context.Background(), "SELECT original_url FROM url WHERE short_url=$1", shortURL)
+	row := conn.QueryRow(ctx, "SELECT original_url FROM url WHERE short_url=$1", shortURL)
 	err = row.Scan(&originalURL)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return "", domain.ErrURLNotFound
@@ -96,16 +97,16 @@ func (u *URLStore) Get(shortURL string) (string, error) {
 	return originalURL, nil
 }
 
-func (u *URLStore) Add(shortURL, url string) error {
+func (u *URLStore) Add(ctx context.Context, shortURL, url string) error {
 	const op = "add url"
-	conn, err := u.pool.Acquire(context.Background())
+	conn, err := u.pool.Acquire(ctx)
 	defer conn.Release()
 
 	if err != nil {
 		return errors.Wrapf(err, op)
 	}
 
-	_, err = conn.Exec(context.Background(), "INSERT INTO url (short_url, original_url) VALUES ($1, $2)",
+	_, err = conn.Exec(ctx, "INSERT INTO url (short_url, original_url) VALUES ($1, $2)",
 		shortURL, url)
 
 	if err != nil {
@@ -115,9 +116,9 @@ func (u *URLStore) Add(shortURL, url string) error {
 	return nil
 }
 
-func (u *URLStore) AddBatch(pairs []domain.URLPair) error {
+func (u *URLStore) AddBatch(ctx context.Context, pairs []domain.URLPair) error {
 	const op = "add batch of urls"
-	conn, err := u.pool.Acquire(context.Background())
+	conn, err := u.pool.Acquire(ctx)
 	defer conn.Release()
 
 	if err != nil {
@@ -125,24 +126,24 @@ func (u *URLStore) AddBatch(pairs []domain.URLPair) error {
 	}
 
 	var txOptions pgx.TxOptions
-	tx, err := conn.BeginTx(context.Background(), txOptions)
+	tx, err := conn.BeginTx(ctx, txOptions)
 
 	if err != nil {
 		return errors.Wrapf(err, op)
 	}
 
 	defer func() {
-		_ = tx.Rollback(context.Background())
+		_ = tx.Rollback(ctx)
 	}()
 
 	stmt, params := prepareInsert(pairs)
-	_, err = tx.Exec(context.Background(), stmt, params...)
+	_, err = tx.Exec(ctx, stmt, params...)
 
 	if err != nil {
 		return errors.Wrapf(err, op)
 	}
 
-	err = tx.Commit(context.Background())
+	err = tx.Commit(ctx)
 
 	if err != nil {
 		return errors.Wrapf(err, op)
@@ -168,14 +169,14 @@ func prepareInsert(pairs []domain.URLPair) (string, []any) {
 	return strings.TrimSuffix(b.String(), ","), params
 }
 
-func (u *URLStore) IsAvailable() bool {
-	conn, err := u.pool.Acquire(context.Background())
+func (u *URLStore) IsAvailable(ctx context.Context) bool {
+	conn, err := u.pool.Acquire(ctx)
 	defer conn.Release()
 
 	if err != nil {
 		return false
 	}
 
-	err = conn.Ping(context.Background())
+	err = conn.Ping(ctx)
 	return err == nil
 }

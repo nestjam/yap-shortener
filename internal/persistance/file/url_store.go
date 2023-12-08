@@ -1,6 +1,7 @@
 package file
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -50,7 +51,7 @@ func getURLs(rw io.ReadWriter) ([]StoredURL, error) {
 	return urls, nil
 }
 
-func (u *URLStore) Get(shortURL string) (string, error) {
+func (u *URLStore) Get(ctx context.Context, shortURL string) (string, error) {
 	if url, ok := u.find(shortURL); ok {
 		return url.OriginalURL, nil
 	}
@@ -67,7 +68,7 @@ func (u *URLStore) find(shortURL string) (*StoredURL, bool) {
 	return nil, false
 }
 
-func (u *URLStore) Add(shortURL, originalURL string) error {
+func (u *URLStore) Add(ctx context.Context, shortURL, originalURL string) error {
 	url := StoredURL{
 		ID:          len(u.urls),
 		ShortURL:    shortURL,
@@ -83,9 +84,9 @@ func (u *URLStore) Add(shortURL, originalURL string) error {
 	return nil
 }
 
-func (u *URLStore) AddBatch(pairs []domain.URLPair) error {
+func (u *URLStore) AddBatch(ctx context.Context, pairs []domain.URLPair) error {
 	for _, p := range pairs {
-		err := u.Add(p.ShortURL, p.OriginalURL)
+		err := u.Add(ctx, p.ShortURL, p.OriginalURL)
 		if err != nil {
 			return fmt.Errorf("add batch: %w", err)
 		}
@@ -93,6 +94,6 @@ func (u *URLStore) AddBatch(pairs []domain.URLPair) error {
 	return nil
 }
 
-func (u *URLStore) IsAvailable() bool {
+func (u *URLStore) IsAvailable(ctx context.Context) bool {
 	return true
 }
