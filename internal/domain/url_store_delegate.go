@@ -44,9 +44,20 @@ func (u *URLStoreDelegate) IsAvailable() bool {
 	if u.IsAvailableFunc != nil {
 		return u.IsAvailableFunc()
 	}
+
 	return u.delegate.IsAvailable()
 }
 
 func (u *URLStoreDelegate) AddBatch(pairs []URLPair) error {
-	panic("not implemented")
+	if u.AddBatchFunc != nil {
+		return u.AddBatchFunc(pairs)
+	}
+
+	err := u.delegate.AddBatch(pairs)
+
+	if err != nil {
+		return fmt.Errorf("add batch of urls to store delegate: %w", err)
+	}
+
+	return nil
 }

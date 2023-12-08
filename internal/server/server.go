@@ -25,6 +25,7 @@ const (
 	applicationJSON                = "application/json"
 	applicationGZIP                = "application/x-gzip"
 	urlIsEmptyMessage              = "url is empty"
+	batchIsEmptyMessage            = "batch is empty"
 	failedToWriterResponseMessage  = "failed to prepare response"
 	failedToStoreURLMessage        = "failed to store url"
 	failedToParseRequestMessage    = "failed to parse request"
@@ -193,6 +194,11 @@ func (s *Server) shortenBatchAPI(w http.ResponseWriter, r *http.Request) {
 
 	if err != nil {
 		badRequest(w, failedToParseRequestMessage)
+		return
+	}
+
+	if len(req) == 0 {
+		badRequest(w, batchIsEmptyMessage)
 		return
 	}
 

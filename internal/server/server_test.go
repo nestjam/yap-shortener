@@ -229,7 +229,7 @@ func (u URLShortenerTest) Test(t *testing.T) {
 			assertContentLenght(t, len(body), response)
 		})
 
-		t.Run("content type is not application/json", func(t *testing.T) {
+		t.Run("content type is not application-json", func(t *testing.T) {
 			urlStore, cleanup := u.CreateDependencies()
 			t.Cleanup(cleanup)
 			sut := New(urlStore, baseURL, zap.NewNop())
@@ -401,7 +401,7 @@ func (u URLShortenerTest) Test(t *testing.T) {
 			urlStore, cleanup := u.CreateDependencies()
 			t.Cleanup(cleanup)
 			sut := New(urlStore, baseURL, zap.NewNop())
-			originalURLs := createBatch([]string{"https://practicum.yandex.ru/", "https://google.com/"})
+			originalURLs := newBatch([]string{"https://practicum.yandex.ru/", "https://google.com/"})
 			request := newBatchShortenAPIRequest(t, originalURLs)
 			response := httptest.NewRecorder()
 
@@ -410,6 +410,133 @@ func (u URLShortenerTest) Test(t *testing.T) {
 			assert.Equal(t, http.StatusCreated, response.Code)
 			assertContentType(t, applicationJSON, response)
 			assertShortURLs(t, originalURLs, response.Body, urlStore)
+		})
+
+		t.Run("content type is not application-json", func(t *testing.T) {
+			urlStore, cleanup := u.CreateDependencies()
+			t.Cleanup(cleanup)
+			sut := New(urlStore, baseURL, zap.NewNop())
+			originalURLs := newBatch([]string{testURL})
+			request := newBatchShortenAPIRequest(t, originalURLs)
+			request.Header.Set(contentTypeHeader, textPlain)
+			response := httptest.NewRecorder()
+
+			sut.ServeHTTP(response, request)
+
+			assert.Equal(t, http.StatusUnsupportedMediaType, response.Code)
+		})
+
+		t.Run("shorten same url twice", func(t *testing.T) {
+			urlStore, cleanup := u.CreateDependencies()
+			t.Cleanup(cleanup)
+			sut := New(urlStore, baseURL, zap.NewNop())
+			originalURLs := newBatch([]string{testURL})
+
+			//1
+			request := newBatchShortenAPIRequest(t, originalURLs)
+			response := httptest.NewRecorder()
+
+			sut.ServeHTTP(response, request)
+
+			assert.Equal(t, http.StatusCreated, response.Code)
+			assertShortURLs(t, originalURLs, response.Body, urlStore)
+
+			//2
+			request = newBatchShortenAPIRequest(t, originalURLs)
+			response = httptest.NewRecorder()
+
+			sut.ServeHTTP(response, request)
+
+			assert.Equal(t, http.StatusCreated, response.Code)
+			assertShortURLs(t, originalURLs, response.Body, urlStore)
+		})
+
+		t.Run("batch is empty", func(t *testing.T) {
+			urlStore, cleanup := u.CreateDependencies()
+			t.Cleanup(cleanup)
+			sut := New(urlStore, baseURL, zap.NewNop())
+			originalURLs := newBatch([]string{})
+			request := newBatchShortenAPIRequest(t, originalURLs)
+			response := httptest.NewRecorder()
+
+			sut.ServeHTTP(response, request)
+
+			assert.Equal(t, http.StatusBadRequest, response.Code)
+			assertBody(t, batchIsEmptyMessage, response)
+		})
+
+		t.Run("request json is invalid", func(t *testing.T) {
+			urlStore, cleanup := u.CreateDependencies()
+			t.Cleanup(cleanup)
+			sut := New(urlStore, baseURL, zap.NewNop())
+			request := httptest.NewRequest(http.MethodPost, "/api/shorten/batch", strings.NewReader("{{]}"))
+			request.Header.Set(contentTypeHeader, applicationJSON)
+			response := httptest.NewRecorder()
+
+			sut.ServeHTTP(response, request)
+
+			assert.Equal(t, http.StatusBadRequest, response.Code)
+			assertBody(t, "failed to parse request", response)
+		})
+
+		t.Run("client accepts br and gzip encodings", func(t *testing.T) {
+			urlStore, cleanup := u.CreateDependencies()
+			t.Cleanup(cleanup)
+			sut := New(urlStore, baseURL, zap.NewNop())
+			originalURLs := newBatch([]string{testURL})
+			request := newBatchShortenAPIRequest(t, originalURLs)
+			request.Header.Set(acceptEncodingHeader, "br, "+gzipEncoding)
+			response := httptest.NewRecorder()
+
+			sut.ServeHTTP(response, request)
+
+			assert.Equal(t, http.StatusCreated, response.Code)
+			assertContentEncoding(t, gzipEncoding, response)
+			assertShortURLs(t, originalURLs, decodeResponse(t, response), urlStore)
+		})
+
+		t.Run("client does not accept encoding", func(t *testing.T) {
+			urlStore, cleanup := u.CreateDependencies()
+			t.Cleanup(cleanup)
+			sut := New(urlStore, baseURL, zap.NewNop())
+			originalURLs := newBatch([]string{testURL})
+			request := newBatchShortenAPIRequest(t, originalURLs)
+			response := httptest.NewRecorder()
+
+			sut.ServeHTTP(response, request)
+
+			assertContentEncoding(t, "", response)
+		})
+
+		t.Run("client sends encoded content", func(t *testing.T) {
+			urlStore, cleanup := u.CreateDependencies()
+			t.Cleanup(cleanup)
+			sut := New(urlStore, baseURL, zap.NewNop())
+			originalURLs := newBatch([]string{testURL})
+			request := newBatchShortenAPIRequest(t, originalURLs)
+			response := httptest.NewRecorder()
+
+			sut.ServeHTTP(response, request)
+
+			assert.Equal(t, http.StatusCreated, response.Code)
+			assertShortURLs(t, originalURLs, response.Body, urlStore)
+		})
+
+		t.Run("failed to store url", func(t *testing.T) {
+			urlStore, cleanup := u.CreateDependencies()
+			t.Cleanup(cleanup)
+			failingURLStore := domain.NewURLStoreDelegate(urlStore)
+			failingURLStore.AddBatchFunc = func(pairs []domain.URLPair) error {
+				return errors.New("failed to add url")
+			}
+			sut := New(failingURLStore, baseURL, zap.NewNop())
+			originalURLs := newBatch([]string{testURL})
+			request := newBatchShortenAPIRequest(t, originalURLs)
+			response := httptest.NewRecorder()
+
+			sut.ServeHTTP(response, request)
+
+			assert.Equal(t, http.StatusInternalServerError, response.Code)
 		})
 	})
 }
@@ -435,7 +562,7 @@ func assertShortURLs(t *testing.T, req []OriginalURL, r io.Reader, store domain.
 	}
 }
 
-func createBatch(urls []string) []OriginalURL {
+func newBatch(urls []string) []OriginalURL {
 	batch := make([]OriginalURL, len(urls))
 	for i := 0; i < len(urls); i++ {
 		batch[i] = OriginalURL{URL: urls[i], CorrelationID: strconv.Itoa(i)}
