@@ -2,6 +2,7 @@ package pgsql
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/nestjam/yap-shortener/internal/domain"
@@ -18,9 +19,9 @@ func New(connString string) *URLStore {
 	}
 }
 
-func (s *URLStore) Init() error {
+func (u *URLStore) Init() error {
 	const op = "init store"
-	conn, err := pgx.Connect(context.Background(), s.connString)
+	conn, err := pgx.Connect(context.Background(), u.connString)
 
 	if err != nil {
 		return errors.Wrapf(err, op)
@@ -41,9 +42,9 @@ func (s *URLStore) Init() error {
 	return nil
 }
 
-func (s *URLStore) Get(shortURL string) (string, error) {
+func (u *URLStore) Get(shortURL string) (string, error) {
 	const op = "get original url"
-	conn, err := pgx.Connect(context.Background(), s.connString)
+	conn, err := pgx.Connect(context.Background(), u.connString)
 
 	if err != nil {
 		return "", errors.Wrapf(err, op)
@@ -63,8 +64,12 @@ func (s *URLStore) Get(shortURL string) (string, error) {
 	return originalURL, nil
 }
 
-func (s *URLStore) Add(shortURL, url string) {
-	conn, _ := pgx.Connect(context.Background(), s.connString)
+func (u *URLStore) Add(shortURL, url string) error {
+	conn, err := pgx.Connect(context.Background(), u.connString)
+
+	if err != nil {
+		return fmt.Errorf("add url: %w", err)
+	}
 
 	defer func() {
 		_ = conn.Close(context.Background())
@@ -72,10 +77,12 @@ func (s *URLStore) Add(shortURL, url string) {
 
 	_ = conn.QueryRow(context.Background(), "INSERT INTO url (short_url, original_url) VALUES ($1, $2)",
 		shortURL, url)
+
+	return nil
 }
 
-func (s *URLStore) IsAvailable() bool {
-	conn, err := pgx.Connect(context.Background(), s.connString)
+func (u *URLStore) IsAvailable() bool {
+	conn, err := pgx.Connect(context.Background(), u.connString)
 
 	if err != nil {
 		return false

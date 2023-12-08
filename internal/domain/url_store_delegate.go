@@ -4,7 +4,7 @@ import "fmt"
 
 type URLStoreDelegate struct {
 	GetFunc         func(shortURL string) (string, error)
-	AddFunc         func(shortURL, url string)
+	AddFunc         func(shortURL, url string) error
 	IsAvailableFunc func() bool
 	delegate        URLStore
 }
@@ -20,17 +20,23 @@ func (u *URLStoreDelegate) Get(shortURL string) (string, error) {
 	url, err := u.delegate.Get(shortURL)
 
 	if err != nil {
-		return "", fmt.Errorf("url store delegate: %w", err)
+		return "", fmt.Errorf("get url from store delegate: %w", err)
 	}
 
 	return url, nil
 }
 
-func (u *URLStoreDelegate) Add(shortURL, url string) {
+func (u *URLStoreDelegate) Add(shortURL, url string) error {
 	if u.AddFunc != nil {
-		u.AddFunc(shortURL, url)
+		return u.AddFunc(shortURL, url)
 	}
-	u.delegate.Add(shortURL, url)
+	err := u.delegate.Add(shortURL, url)
+
+	if err != nil {
+		return fmt.Errorf("add url to store delegate: %w", err)
+	}
+
+	return nil
 }
 
 func (u *URLStoreDelegate) IsAvailable() bool {

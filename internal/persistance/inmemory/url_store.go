@@ -14,18 +14,19 @@ func New() *URLStore {
 	return &URLStore{}
 }
 
-func (s *URLStore) Get(shortURL string) (string, error) {
-	url, ok := s.m.Load(shortURL)
+func (u *URLStore) Get(shortURL string) (string, error) {
+	url, ok := u.m.Load(shortURL)
 	if !ok {
 		return "", domain.ErrURLNotFound
 	}
 	return url.(string), nil
 }
 
-func (s *URLStore) Add(shortURL, url string) {
-	s.m.Store(shortURL, url)
+func (u *URLStore) Add(shortURL, url string) error {
+	u.m.Store(shortURL, url)
+	return nil
 }
 
-func (s *URLStore) IsAvailable() bool {
+func (u *URLStore) IsAvailable() bool {
 	return true
 }

@@ -50,33 +50,39 @@ func getURLs(rw io.ReadWriter) ([]StoredURL, error) {
 	return urls, nil
 }
 
-func (f *URLStore) Get(shortURL string) (string, error) {
-	if url, ok := f.find(shortURL); ok {
+func (u *URLStore) Get(shortURL string) (string, error) {
+	if url, ok := u.find(shortURL); ok {
 		return url.OriginalURL, nil
 	}
 
 	return "", domain.ErrURLNotFound
 }
 
-func (f *URLStore) find(shortURL string) (*StoredURL, bool) {
-	for i := 0; i < len(f.urls); i++ {
-		if f.urls[i].ShortURL == shortURL {
-			return &f.urls[i], true
+func (u *URLStore) find(shortURL string) (*StoredURL, bool) {
+	for i := 0; i < len(u.urls); i++ {
+		if u.urls[i].ShortURL == shortURL {
+			return &u.urls[i], true
 		}
 	}
 	return nil, false
 }
 
-func (f *URLStore) Add(shortURL, originalURL string) {
+func (u *URLStore) Add(shortURL, originalURL string) error {
 	url := StoredURL{
-		ID:          len(f.urls),
+		ID:          len(u.urls),
 		ShortURL:    shortURL,
 		OriginalURL: originalURL,
 	}
-	f.urls = append(f.urls, url)
-	_ = f.encoder.Encode(url)
+	u.urls = append(u.urls, url)
+	err := u.encoder.Encode(url)
+
+	if err != nil {
+		return fmt.Errorf("add url: %w", err)
+	}
+
+	return nil
 }
 
-func (f *URLStore) IsAvailable() bool {
+func (u *URLStore) IsAvailable() bool {
 	return true
 }

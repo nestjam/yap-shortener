@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"compress/gzip"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -56,7 +57,8 @@ func (u URLShortenerTest) Test(t *testing.T) {
 			)
 			urlStore, cleanup := u.CreateDependencies()
 			t.Cleanup(cleanup)
-			urlStore.Add(shortURL, testURL)
+			err := urlStore.Add(shortURL, testURL)
+			require.NoError(t, err)
 			sut := New(urlStore, baseURL, zap.NewNop())
 			request := newGetRequest(shortURL)
 			response := httptest.NewRecorder()
@@ -190,6 +192,22 @@ func (u URLShortenerTest) Test(t *testing.T) {
 			assertContentEncoding(t, "", response)
 			assertRedirectURL(t, response.Body.String(), urlStore)
 		})
+
+		t.Run("failed to store url", func(t *testing.T) {
+			urlStore, cleanup := u.CreateDependencies()
+			t.Cleanup(cleanup)
+			failingURLStore := domain.NewURLStoreDelegate(urlStore)
+			failingURLStore.AddFunc = func(shortURL, url string) error {
+				return errors.New("failed to add url")
+			}
+			sut := New(failingURLStore, baseURL, zap.NewNop())
+			request := newShortenRequest(testURL)
+			response := httptest.NewRecorder()
+
+			sut.ServeHTTP(response, request)
+
+			assert.Equal(t, http.StatusInternalServerError, response.Code)
+		})
 	})
 
 	t.Run("shortening original url (api)", func(t *testing.T) {
@@ -315,6 +333,22 @@ func (u URLShortenerTest) Test(t *testing.T) {
 			assert.Equal(t, http.StatusCreated, response.Code)
 			got := getShortURL(t, response.Body)
 			assertRedirectURL(t, got, urlStore)
+		})
+
+		t.Run("failed to store url", func(t *testing.T) {
+			urlStore, cleanup := u.CreateDependencies()
+			t.Cleanup(cleanup)
+			failingURLStore := domain.NewURLStoreDelegate(urlStore)
+			failingURLStore.AddFunc = func(shortURL, url string) error {
+				return errors.New("failed to add url")
+			}
+			sut := New(failingURLStore, baseURL, zap.NewNop())
+			request := newEncodedShortenAPIRequest(t, testURL)
+			response := httptest.NewRecorder()
+
+			sut.ServeHTTP(response, request)
+
+			assert.Equal(t, http.StatusInternalServerError, response.Code)
 		})
 	})
 

@@ -26,6 +26,7 @@ const (
 	applicationGZIP               = "application/x-gzip"
 	urlIsEmptyMessage             = "url is empty"
 	failedToWriterResponseMessage = "failed to prepare response"
+	failedToStoreURLMessage       = "failed to store url"
 )
 
 type Server struct {
@@ -105,7 +106,12 @@ func (s *Server) shorten(w http.ResponseWriter, r *http.Request) {
 	}
 
 	shortURL := shortener.Shorten(uuid.New().ID())
-	s.storage.Add(shortURL, string(body))
+	err = s.storage.Add(shortURL, string(body))
+
+	if err != nil {
+		internalError(w, failedToStoreURLMessage)
+		return
+	}
 
 	w.Header().Set(contentTypeHeader, textPlain)
 	w.WriteHeader(http.StatusCreated)
@@ -133,7 +139,12 @@ func (s *Server) shortenAPI(w http.ResponseWriter, r *http.Request) {
 	}
 
 	shortURL := shortener.Shorten(uuid.New().ID())
-	s.storage.Add(shortURL, req.URL)
+	err = s.storage.Add(shortURL, req.URL)
+
+	if err != nil {
+		internalError(w, failedToStoreURLMessage)
+		return
+	}
 
 	resp := ShortenResponse{Result: joinPath(s.baseURL, shortURL)}
 	content, err := json.Marshal(resp)

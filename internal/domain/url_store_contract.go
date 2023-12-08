@@ -14,7 +14,7 @@ var (
 
 type URLStore interface {
 	Get(shortURL string) (string, error)
-	Add(shortURL, url string)
+	Add(shortURL, url string) error
 	IsAvailable() bool
 }
 
@@ -31,9 +31,12 @@ func (c URLStoreContract) Test(t *testing.T) {
 		sut, tearDown := c.NewURLStore()
 		t.Cleanup(tearDown)
 
-		sut.Add(shortURL, originalURL)
+		err := sut.Add(shortURL, originalURL)
+
+		assert.NoError(t, err)
 
 		got, err := sut.Get(shortURL)
+
 		require.NoError(t, err)
 		assert.Equal(t, originalURL, got)
 	})
