@@ -26,6 +26,7 @@ func TestURLStore(t *testing.T) {
 			require.NoError(t, err)
 
 			return store, func() {
+				_ = f.Close()
 				_ = os.Remove(f.Name())
 			}
 		},
