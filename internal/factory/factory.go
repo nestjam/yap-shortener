@@ -26,7 +26,7 @@ func NewStorage(conf conf.Config, logger *zap.Logger) (domain.URLStore, func()) 
 			logger.Fatal("Failed to initialize store", zap.Error(err))
 		}
 
-		return store, func() {}
+		return store, func() { store.Close() }
 	}
 
 	if conf.FileStoragePath != "" {

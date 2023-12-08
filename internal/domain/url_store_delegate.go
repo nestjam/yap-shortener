@@ -5,6 +5,7 @@ import "fmt"
 type URLStoreDelegate struct {
 	GetFunc         func(shortURL string) (string, error)
 	AddFunc         func(shortURL, url string) error
+	AddBatchFunc    func(pairs []URLPair) error
 	IsAvailableFunc func() bool
 	delegate        URLStore
 }
@@ -44,4 +45,8 @@ func (u *URLStoreDelegate) IsAvailable() bool {
 		return u.IsAvailableFunc()
 	}
 	return u.delegate.IsAvailable()
+}
+
+func (u *URLStoreDelegate) AddBatch(pairs []URLPair) error {
+	panic("not implemented")
 }

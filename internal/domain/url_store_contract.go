@@ -12,9 +12,15 @@ var (
 	ErrURLNotFound = errors.New("not found")
 )
 
+type URLPair struct {
+	ShortURL    string
+	OriginalURL string
+}
+
 type URLStore interface {
 	Get(shortURL string) (string, error)
-	Add(shortURL, url string) error
+	Add(shortURL, originalURL string) error
+	AddBatch(pairs []URLPair) error
 	IsAvailable() bool
 }
 
@@ -23,7 +29,7 @@ type URLStoreContract struct {
 }
 
 func (c URLStoreContract) Test(t *testing.T) {
-	t.Run("add new url", func(t *testing.T) {
+	t.Run("add url", func(t *testing.T) {
 		const (
 			shortURL    = "abc"
 			originalURL = "http://example.com"
@@ -55,5 +61,30 @@ func (c URLStoreContract) Test(t *testing.T) {
 
 		got := sut.IsAvailable()
 		assert.True(t, got)
+	})
+
+	t.Run("add batch of urls", func(t *testing.T) {
+		pairs := []URLPair{
+			{
+				ShortURL:    "abc",
+				OriginalURL: "http://example.com",
+			},
+			{
+				ShortURL:    "123",
+				OriginalURL: "http://yandex.ru",
+			},
+		}
+		sut, tearDown := c.NewURLStore()
+		t.Cleanup(tearDown)
+
+		err := sut.AddBatch(pairs)
+
+		assert.NoError(t, err)
+
+		for i := 0; i < len(pairs); i++ {
+			got, err := sut.Get(pairs[i].ShortURL)
+			require.NoError(t, err)
+			assert.Equal(t, pairs[i].OriginalURL, got)
+		}
 	})
 }

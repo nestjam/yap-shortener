@@ -18,15 +18,17 @@ import (
 )
 
 const (
-	locationHeader                = "Location"
-	contentTypeHeader             = "Content-Type"
-	contentLengthHeader           = "Content-Length"
-	textPlain                     = "text/plain"
-	applicationJSON               = "application/json"
-	applicationGZIP               = "application/x-gzip"
-	urlIsEmptyMessage             = "url is empty"
-	failedToWriterResponseMessage = "failed to prepare response"
-	failedToStoreURLMessage       = "failed to store url"
+	locationHeader                 = "Location"
+	contentTypeHeader              = "Content-Type"
+	contentLengthHeader            = "Content-Length"
+	textPlain                      = "text/plain"
+	applicationJSON                = "application/json"
+	applicationGZIP                = "application/x-gzip"
+	urlIsEmptyMessage              = "url is empty"
+	failedToWriterResponseMessage  = "failed to prepare response"
+	failedToStoreURLMessage        = "failed to store url"
+	failedToParseRequestMessage    = "failed to parse request"
+	failedToPrepareResponseMessage = "failed to prepare response"
 )
 
 type Server struct {
@@ -41,6 +43,16 @@ type ShortenRequest struct {
 
 type ShortenResponse struct {
 	Result string `json:"result"`
+}
+
+type OriginalURL struct {
+	CorrelationID string `json:"correlation_id"`
+	URL           string `json:"original_url"`
+}
+
+type ShortURL struct {
+	CorrelationID string `json:"correlation_id"`
+	URL           string `json:"short_url"`
 }
 
 func New(storage domain.URLStore, baseURL string, logger *zap.Logger) *Server {
@@ -61,6 +73,7 @@ func New(storage domain.URLStore, baseURL string, logger *zap.Logger) *Server {
 		r.Use(chimiddleware.AllowContentType(applicationJSON))
 		r.Use(middleware.RequestDecoder, middleware.ResponseEncoder)
 
+		r.Post("/api/shorten/batch", s.shortenBatchAPI)
 		r.Post("/api/shorten", s.shortenAPI)
 	})
 
@@ -129,7 +142,7 @@ func (s *Server) shortenAPI(w http.ResponseWriter, r *http.Request) {
 	err := decoder.Decode(&req)
 
 	if err != nil {
-		badRequest(w, "failed to parse request")
+		badRequest(w, failedToParseRequestMessage)
 		return
 	}
 
@@ -150,7 +163,7 @@ func (s *Server) shortenAPI(w http.ResponseWriter, r *http.Request) {
 	content, err := json.Marshal(resp)
 
 	if err != nil {
-		internalError(w, "failed to prepare response")
+		internalError(w, failedToPrepareResponseMessage)
 		return
 	}
 
@@ -171,6 +184,57 @@ func (s *Server) ping(w http.ResponseWriter, r *http.Request) {
 		status = http.StatusOK
 	}
 	w.WriteHeader(status)
+}
+
+func (s *Server) shortenBatchAPI(w http.ResponseWriter, r *http.Request) {
+	var req []OriginalURL
+	decoder := json.NewDecoder(r.Body)
+	err := decoder.Decode(&req)
+
+	if err != nil {
+		badRequest(w, failedToParseRequestMessage)
+		return
+	}
+
+	urlPairs := make([]domain.URLPair, len(req))
+	for i := 0; i < len(req); i++ {
+		urlPairs[i] = domain.URLPair{
+			ShortURL:    shortener.Shorten(uuid.New().ID()),
+			OriginalURL: req[i].URL,
+		}
+	}
+
+	err = s.storage.AddBatch(urlPairs)
+
+	if err != nil {
+		internalError(w, failedToStoreURLMessage)
+		return
+	}
+
+	resp := make([]ShortURL, len(req))
+	for i := 0; i < len(req); i++ {
+		resp[i] = ShortURL{
+			CorrelationID: req[i].CorrelationID,
+			URL:           joinPath(s.baseURL, urlPairs[i].ShortURL),
+		}
+	}
+
+	content, err := json.Marshal(resp)
+
+	if err != nil {
+		internalError(w, failedToPrepareResponseMessage)
+		return
+	}
+
+	w.Header().Set(contentTypeHeader, applicationJSON)
+	w.Header().Set(contentLengthHeader, strconv.Itoa(len(content)))
+	w.WriteHeader(http.StatusCreated)
+	_, err = w.Write(content)
+
+	if err != nil {
+		internalError(w, failedToWriterResponseMessage)
+		return
+	}
 }
 
 func joinPath(base, elem string) string {

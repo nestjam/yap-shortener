@@ -83,6 +83,16 @@ func (u *URLStore) Add(shortURL, originalURL string) error {
 	return nil
 }
 
+func (u *URLStore) AddBatch(pairs []domain.URLPair) error {
+	for _, p := range pairs {
+		err := u.Add(p.ShortURL, p.OriginalURL)
+		if err != nil {
+			return fmt.Errorf("add batch: %w", err)
+		}
+	}
+	return nil
+}
+
 func (u *URLStore) IsAvailable() bool {
 	return true
 }

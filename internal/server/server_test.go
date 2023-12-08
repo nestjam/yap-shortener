@@ -28,6 +28,7 @@ const (
 	contentEncodingHeader = "Content-Encoding"
 	gzipEncoding          = "gzip"
 	apiShortenPath        = "/api/shorten"
+	apiBatchShortenPath   = "/api/shorten/batch"
 	pingPath              = "ping"
 )
 
@@ -99,7 +100,7 @@ func (u URLShortenerTest) Test(t *testing.T) {
 		})
 	})
 
-	t.Run("shortening original url", func(t *testing.T) {
+	t.Run("shortening url", func(t *testing.T) {
 		t.Run("shorten url", func(t *testing.T) {
 			urlStore, cleanup := u.CreateDependencies()
 			t.Cleanup(cleanup)
@@ -210,7 +211,7 @@ func (u URLShortenerTest) Test(t *testing.T) {
 		})
 	})
 
-	t.Run("shortening original url (api)", func(t *testing.T) {
+	t.Run("shortening url (api)", func(t *testing.T) {
 		t.Run("shorten url", func(t *testing.T) {
 			urlStore, cleanup := u.CreateDependencies()
 			t.Cleanup(cleanup)
@@ -394,6 +395,63 @@ func (u URLShortenerTest) Test(t *testing.T) {
 			assert.Equal(t, http.StatusInternalServerError, response.Code)
 		})
 	})
+
+	t.Run("batch shortening urls (api)", func(t *testing.T) {
+		t.Run("shorten urls", func(t *testing.T) {
+			urlStore, cleanup := u.CreateDependencies()
+			t.Cleanup(cleanup)
+			sut := New(urlStore, baseURL, zap.NewNop())
+			originalURLs := createBatch([]string{"https://practicum.yandex.ru/", "https://google.com/"})
+			request := newBatchShortenAPIRequest(t, originalURLs)
+			response := httptest.NewRecorder()
+
+			sut.ServeHTTP(response, request)
+
+			assert.Equal(t, http.StatusCreated, response.Code)
+			assertContentType(t, applicationJSON, response)
+			assertShortURLs(t, originalURLs, response.Body, urlStore)
+		})
+	})
+}
+
+func assertShortURLs(t *testing.T, req []OriginalURL, r io.Reader, store domain.URLStore) {
+	t.Helper()
+	var resp []ShortURL
+	err := json.NewDecoder(r).Decode(&resp)
+
+	require.NoError(t, err, "unable to parse response from server: %v", err)
+
+	assert.Equal(t, len(req), len(resp))
+	for i := 0; i < len(req); i++ {
+		urlPath, err := getURLPath(resp[i].URL)
+
+		require.NoError(t, err)
+
+		got, err := store.Get(strings.Trim(urlPath, "/"))
+
+		require.NoError(t, err)
+
+		assert.Equal(t, got, req[i].URL)
+	}
+}
+
+func createBatch(urls []string) []OriginalURL {
+	batch := make([]OriginalURL, len(urls))
+	for i := 0; i < len(urls); i++ {
+		batch[i] = OriginalURL{URL: urls[i], CorrelationID: strconv.Itoa(i)}
+	}
+	return batch
+}
+
+func newBatchShortenAPIRequest(t *testing.T, r []OriginalURL) *http.Request {
+	t.Helper()
+	body, err := json.Marshal(&r)
+
+	require.NoError(t, err, "unable to marshal %q, %v", r, err)
+
+	request := httptest.NewRequest(http.MethodPost, apiBatchShortenPath, strings.NewReader(string(body)))
+	request.Header.Set(contentTypeHeader, applicationJSON)
+	return request
 }
 
 func newPingRequest() *http.Request {

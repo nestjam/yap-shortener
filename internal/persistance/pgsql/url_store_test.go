@@ -27,6 +27,7 @@ func TestURLStore(t *testing.T) {
 			require.NoError(t, err)
 
 			return store, func() {
+				store.Close()
 				dropTable(t)
 			}
 		},

@@ -27,6 +27,13 @@ func (u *URLStore) Add(shortURL, url string) error {
 	return nil
 }
 
+func (u *URLStore) AddBatch(pairs []domain.URLPair) error {
+	for _, p := range pairs {
+		u.m.Store(p.ShortURL, p.OriginalURL)
+	}
+	return nil
+}
+
 func (u *URLStore) IsAvailable() bool {
 	return true
 }
