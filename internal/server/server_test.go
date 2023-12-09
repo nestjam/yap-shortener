@@ -133,22 +133,23 @@ func (u URLShortenerTest) Test(t *testing.T) {
 			urlStore, cleanup := u.CreateDependencies()
 			t.Cleanup(cleanup)
 			sut := New(urlStore, baseURL, zap.NewNop())
+
+			//1
 			request := newShortenRequest(testURL)
 			response := httptest.NewRecorder()
 
-			//1
 			sut.ServeHTTP(response, request)
 
 			assert.Equal(t, http.StatusCreated, response.Code)
 			assertRedirectURL(t, response.Body.String(), urlStore)
 
+			//2
 			request = newShortenRequest(testURL)
 			response = httptest.NewRecorder()
 
-			//2
 			sut.ServeHTTP(response, request)
 
-			assert.Equal(t, http.StatusCreated, response.Code)
+			assert.Equal(t, http.StatusConflict, response.Code)
 			assertRedirectURL(t, response.Body.String(), urlStore)
 		})
 
@@ -247,24 +248,25 @@ func (u URLShortenerTest) Test(t *testing.T) {
 			urlStore, cleanup := u.CreateDependencies()
 			t.Cleanup(cleanup)
 			sut := New(urlStore, baseURL, zap.NewNop())
+
+			//1
 			request := newShortenAPIRequest(t, testURL)
 			response := httptest.NewRecorder()
 
-			//1
 			sut.ServeHTTP(response, request)
 
 			got := getShortURL(t, response.Body)
 			assert.Equal(t, http.StatusCreated, response.Code)
 			assertRedirectURL(t, got, urlStore)
 
+			//2
 			request = newShortenAPIRequest(t, testURL)
 			response = httptest.NewRecorder()
 
-			//2
 			sut.ServeHTTP(response, request)
 
+			assert.Equal(t, http.StatusConflict, response.Code)
 			got = getShortURL(t, response.Body)
-			assert.Equal(t, http.StatusCreated, response.Code)
 			assertRedirectURL(t, got, urlStore)
 		})
 

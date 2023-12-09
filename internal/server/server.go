@@ -97,7 +97,7 @@ func (s *Server) redirect(w http.ResponseWriter, r *http.Request) {
 	key := chi.URLParam(r, "key")
 	url, err := s.storage.Get(r.Context(), key)
 
-	if errors.Is(err, domain.ErrURLNotFound) {
+	if errors.Is(err, domain.ErrOriginalURLNotFound) {
 		notFound(w, err.Error())
 		return
 	}
@@ -122,13 +122,19 @@ func (s *Server) shorten(w http.ResponseWriter, r *http.Request) {
 	shortURL := shortener.Shorten(uuid.New().ID())
 	err = s.storage.Add(r.Context(), shortURL, string(body))
 
-	if err != nil {
+	var originalURLAlreadyExists *domain.OriginalURLExistsError
+	if err != nil && !errors.As(err, &originalURLAlreadyExists) {
 		internalError(w, failedToStoreURLMessage)
 		return
 	}
 
+	status := http.StatusCreated
+	if originalURLAlreadyExists != nil {
+		status = http.StatusConflict
+		shortURL = originalURLAlreadyExists.GetShortURL()
+	}
 	w.Header().Set(contentTypeHeader, textPlain)
-	w.WriteHeader(http.StatusCreated)
+	w.WriteHeader(status)
 	_, err = w.Write([]byte(joinPath(s.baseURL, shortURL)))
 
 	if err != nil {
@@ -155,9 +161,16 @@ func (s *Server) shortenAPI(w http.ResponseWriter, r *http.Request) {
 	shortURL := shortener.Shorten(uuid.New().ID())
 	err = s.storage.Add(r.Context(), shortURL, req.URL)
 
-	if err != nil {
+	var originalURLAlreadyExists *domain.OriginalURLExistsError
+	if err != nil && !errors.As(err, &originalURLAlreadyExists) {
 		internalError(w, failedToStoreURLMessage)
 		return
+	}
+
+	status := http.StatusCreated
+	if originalURLAlreadyExists != nil {
+		status = http.StatusConflict
+		shortURL = originalURLAlreadyExists.GetShortURL()
 	}
 
 	resp := ShortenResponse{Result: joinPath(s.baseURL, shortURL)}
@@ -170,7 +183,7 @@ func (s *Server) shortenAPI(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set(contentTypeHeader, applicationJSON)
 	w.Header().Set(contentLengthHeader, strconv.Itoa(len(content)))
-	w.WriteHeader(http.StatusCreated)
+	w.WriteHeader(status)
 	_, err = w.Write(content)
 
 	if err != nil {

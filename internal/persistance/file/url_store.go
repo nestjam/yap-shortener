@@ -52,23 +52,27 @@ func getURLs(rw io.ReadWriter) ([]StoredURL, error) {
 }
 
 func (u *URLStore) Get(ctx context.Context, shortURL string) (string, error) {
-	if url, ok := u.find(shortURL); ok {
-		return url.OriginalURL, nil
+	if url, ok := u.findOriginalURL(shortURL); ok {
+		return url, nil
 	}
 
-	return "", domain.ErrURLNotFound
+	return "", domain.ErrOriginalURLNotFound
 }
 
-func (u *URLStore) find(shortURL string) (*StoredURL, bool) {
+func (u *URLStore) findOriginalURL(shortURL string) (string, bool) {
 	for i := 0; i < len(u.urls); i++ {
 		if u.urls[i].ShortURL == shortURL {
-			return &u.urls[i], true
+			return u.urls[i].OriginalURL, true
 		}
 	}
-	return nil, false
+	return "", false
 }
 
 func (u *URLStore) Add(ctx context.Context, shortURL, originalURL string) error {
+	if shortURL, ok := u.findShortURL(originalURL); ok {
+		return domain.NewOriginalURLExistsError(shortURL, nil)
+	}
+
 	url := StoredURL{
 		ID:          len(u.urls),
 		ShortURL:    shortURL,
@@ -82,6 +86,15 @@ func (u *URLStore) Add(ctx context.Context, shortURL, originalURL string) error 
 	}
 
 	return nil
+}
+
+func (u *URLStore) findShortURL(originalURL string) (string, bool) {
+	for i := 0; i < len(u.urls); i++ {
+		if u.urls[i].OriginalURL == originalURL {
+			return u.urls[i].ShortURL, true
+		}
+	}
+	return "", false
 }
 
 func (u *URLStore) AddBatch(ctx context.Context, pairs []domain.URLPair) error {

@@ -23,6 +23,7 @@ require (
 	github.com/go-chi/chi v1.5.5
 	github.com/go-chi/chi/v5 v5.0.10
 	github.com/google/uuid v1.4.0
+	github.com/jackc/pgerrcode v0.0.0-20220416144525-469b46aa5efa
 	github.com/jackc/pgx v3.6.2+incompatible
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	go.uber.org/zap v1.26.0

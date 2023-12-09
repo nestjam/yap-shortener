@@ -5,7 +5,9 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/jackc/pgerrcode"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/nestjam/yap-shortener/internal/domain"
 	"github.com/pkg/errors"
@@ -41,7 +43,7 @@ func (u *URLStore) Init() error {
 
 	_, err = conn.Exec(ctx, `CREATE TABLE IF NOT EXISTS url(id SERIAL PRIMARY KEY,
 		short_url VARCHAR(255),
-		original_url TEXT);`)
+		original_url TEXT UNIQUE);`)
 
 	if err != nil {
 		return errors.Wrapf(err, op)
@@ -91,14 +93,15 @@ func (u *URLStore) Get(ctx context.Context, shortURL string) (string, error) {
 	row := conn.QueryRow(ctx, "SELECT original_url FROM url WHERE short_url=$1", shortURL)
 	err = row.Scan(&originalURL)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return "", domain.ErrURLNotFound
+		return "", domain.ErrOriginalURLNotFound
 	}
 
 	return originalURL, nil
 }
 
-func (u *URLStore) Add(ctx context.Context, shortURL, url string) error {
+func (u *URLStore) Add(ctx context.Context, shortURL, originalURL string) error {
 	const op = "add url"
+
 	conn, err := u.pool.Acquire(ctx)
 	defer conn.Release()
 
@@ -107,13 +110,36 @@ func (u *URLStore) Add(ctx context.Context, shortURL, url string) error {
 	}
 
 	_, err = conn.Exec(ctx, "INSERT INTO url (short_url, original_url) VALUES ($1, $2)",
-		shortURL, url)
+		shortURL, originalURL)
+
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) && pgErr.Code == pgerrcode.UniqueViolation {
+		shortURL, err := getShortURL(ctx, conn, originalURL)
+
+		if err != nil {
+			return errors.Wrapf(err, op)
+		}
+
+		return domain.NewOriginalURLExistsError(shortURL, nil)
+	}
 
 	if err != nil {
 		return errors.Wrapf(err, op)
 	}
 
 	return nil
+}
+
+func getShortURL(ctx context.Context, conn *pgxpool.Conn, originalURL string) (string, error) {
+	var shortURL string
+	row := conn.QueryRow(ctx, "SELECT short_url FROM url WHERE original_url=$1", originalURL)
+	err := row.Scan(&shortURL)
+
+	if err != nil {
+		return "", fmt.Errorf("get short url: %w", err)
+	}
+
+	return shortURL, nil
 }
 
 func (u *URLStore) AddBatch(ctx context.Context, pairs []domain.URLPair) error {

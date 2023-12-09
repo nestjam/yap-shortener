@@ -3,6 +3,7 @@ package domain
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -10,8 +11,32 @@ import (
 )
 
 var (
-	ErrURLNotFound = errors.New("not found")
+	ErrOriginalURLNotFound = errors.New("not found")
 )
+
+type OriginalURLExistsError struct {
+	err      error
+	shortURL string
+}
+
+func NewOriginalURLExistsError(shortURL string, err error) *OriginalURLExistsError {
+	return &OriginalURLExistsError{
+		err:      err,
+		shortURL: shortURL,
+	}
+}
+
+func (u *OriginalURLExistsError) Error() string {
+	return fmt.Sprintf("original URL already exists: %v", u.err.Error())
+}
+
+func (u *OriginalURLExistsError) Unwrap() error {
+	return u.err
+}
+
+func (u *OriginalURLExistsError) GetShortURL() string {
+	return u.shortURL
+}
 
 type URLPair struct {
 	ShortURL    string
@@ -53,7 +78,7 @@ func (c URLStoreContract) Test(t *testing.T) {
 		t.Cleanup(tearDown)
 
 		_, err := sut.Get(context.Background(), "123")
-		assert.ErrorIs(t, err, ErrURLNotFound)
+		assert.ErrorIs(t, err, ErrOriginalURLNotFound)
 	})
 
 	t.Run("store is available", func(t *testing.T) {
@@ -87,5 +112,25 @@ func (c URLStoreContract) Test(t *testing.T) {
 			require.NoError(t, err)
 			assert.Equal(t, pairs[i].OriginalURL, got)
 		}
+	})
+
+	t.Run("add same url twice", func(t *testing.T) {
+		const (
+			shortURL    = "abc"
+			originalURL = "http://example.com"
+		)
+		ctx := context.Background()
+		var want *OriginalURLExistsError
+		sut, tearDown := c.NewURLStore()
+		t.Cleanup(tearDown)
+
+		err := sut.Add(ctx, shortURL, originalURL)
+
+		require.NoError(t, err)
+
+		got := sut.Add(ctx, shortURL, originalURL)
+
+		assert.ErrorAs(t, got, &want)
+		assert.Equal(t, shortURL, want.GetShortURL())
 	})
 }
