@@ -90,14 +90,14 @@ func (u *URLStore) Add(ctx context.Context, shortURL, originalURL string) error 
 
 	u.mu.Lock()
 	defer u.mu.Unlock()
-
-	u.id++
+	
 	url := StoredURL{
 		ID:          u.id,
 		ShortURL:    shortURL,
 		OriginalURL: originalURL,
 	}
 	err = u.encoder.Encode(url)
+	u.id++
 
 	if err != nil {
 		return errors.Wrap(err, op)
@@ -119,13 +119,13 @@ func (u *URLStore) AddBatch(ctx context.Context, pairs []domain.URLPair) error {
 	defer u.mu.Unlock()
 
 	for i := 0; i < len(pairs); i++ {
-		u.id++
 		url := StoredURL{
 			ID:          u.id,
 			ShortURL:    pairs[i].ShortURL,
 			OriginalURL: pairs[i].OriginalURL,
 		}
 		err = u.encoder.Encode(url)
+		u.id++
 
 		if err != nil {
 			return errors.Wrap(err, op)

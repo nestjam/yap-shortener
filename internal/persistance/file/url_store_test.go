@@ -35,6 +35,32 @@ func TestURLStore(t *testing.T) {
 	}.Test(t)
 }
 
+func TestNew(t *testing.T) {
+	t.Run("data contains records with same original url", func(t *testing.T) {
+		const originalURL = "http://example.com"
+		var (
+			urls   = []StoredURL{
+				{
+					ID:          0,
+					ShortURL:    "abc",
+					OriginalURL: originalURL,
+				},
+				{
+					ID:          1,
+					ShortURL:    "123",
+					OriginalURL: originalURL,
+				},
+			}
+			rw     = getReadWriter(t, urls)
+		)
+
+		_, err := New(rw)
+
+		var want *domain.OriginalURLExistsError
+		require.ErrorAs(t, err, &want)
+	})
+}
+
 func TestGet(t *testing.T) {
 	t.Run("invalid data", func(t *testing.T) {
 		data := "invalid_data"
