@@ -2,6 +2,8 @@ package file
 
 import (
 	"bytes"
+	"context"
+	"encoding/json"
 	"os"
 	"testing"
 
@@ -41,4 +43,100 @@ func TestGet(t *testing.T) {
 
 		assert.Error(t, err)
 	})
+}
+
+func TestAdd(t *testing.T) {
+	t.Run("write url to writer", func(t *testing.T) {
+		const (
+			shortURL    = "abc"
+			originalURL = "http://example.com"
+		)
+		var (
+			want   = StoredURL{ID: 0, ShortURL: shortURL, OriginalURL: originalURL}
+			urls   = []StoredURL{}
+			rw     = getReadWriter(t, urls)
+			sut, _ = New(rw)
+		)
+
+		err := sut.Add(context.Background(), shortURL, originalURL)
+		require.NoError(t, err)
+
+		assertStoredURL(t, want, rw)
+	})
+}
+
+func TestAddBatch(t *testing.T) {
+	t.Run("write batch of urls to writer", func(t *testing.T) {
+		var (
+			urls = []domain.URLPair{
+				{
+					ShortURL:    "abc",
+					OriginalURL: "http://example.com",
+				},
+				{
+					ShortURL:    "123",
+					OriginalURL: "http://example2.com",
+				},
+			}
+			want = []StoredURL{
+				{
+					ID:          0,
+					ShortURL:    urls[0].ShortURL,
+					OriginalURL: urls[0].OriginalURL,
+				},
+				{
+					ID:          1,
+					ShortURL:    urls[1].ShortURL,
+					OriginalURL: urls[1].OriginalURL,
+				},
+			}
+			stored = []StoredURL{}
+			rw     = getReadWriter(t, stored)
+			sut, _ = New(rw)
+		)
+
+		err := sut.AddBatch(context.Background(), urls)
+
+		require.NoError(t, err)
+		assertStoredURLs(t, want, rw)
+	})
+}
+
+func assertStoredURLs(t *testing.T, wantURLs []StoredURL, rw *bytes.Buffer) {
+	t.Helper()
+
+	dec := json.NewDecoder(rw)
+
+	for _, want := range wantURLs {
+		var got StoredURL
+		err := dec.Decode(&got)
+		require.NoError(t, err)
+
+		assert.Equal(t, want, got)
+	}
+}
+
+func assertStoredURL(t *testing.T, want StoredURL, rw *bytes.Buffer) {
+	t.Helper()
+
+	decoder := json.NewDecoder(rw)
+	var got StoredURL
+	err := decoder.Decode(&got)
+	require.NoError(t, err)
+
+	assert.Equal(t, want, got)
+}
+
+func getReadWriter(t *testing.T, urls []StoredURL) *bytes.Buffer {
+	t.Helper()
+	var buf []byte
+
+	for _, url := range urls {
+		data, err := json.Marshal(url)
+		require.NoError(t, err)
+
+		buf = append(buf, data...)
+	}
+
+	return bytes.NewBuffer(buf)
 }

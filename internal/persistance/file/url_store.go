@@ -100,6 +100,7 @@ func (u *URLStore) findShortURL(originalURL string) (string, bool) {
 func (u *URLStore) AddBatch(ctx context.Context, pairs []domain.URLPair) error {
 	for _, p := range pairs {
 		err := u.Add(ctx, p.ShortURL, p.OriginalURL)
+
 		if err != nil {
 			return fmt.Errorf("add batch: %w", err)
 		}
