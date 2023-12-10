@@ -90,7 +90,7 @@ func (u *URLStore) Add(ctx context.Context, shortURL, originalURL string) error 
 
 	u.mu.Lock()
 	defer u.mu.Unlock()
-	
+
 	url := StoredURL{
 		ID:          u.id,
 		ShortURL:    shortURL,

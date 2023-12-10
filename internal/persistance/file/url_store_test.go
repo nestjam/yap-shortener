@@ -39,7 +39,7 @@ func TestNew(t *testing.T) {
 	t.Run("data contains records with same original url", func(t *testing.T) {
 		const originalURL = "http://example.com"
 		var (
-			urls   = []StoredURL{
+			urls = []StoredURL{
 				{
 					ID:          0,
 					ShortURL:    "abc",
@@ -51,7 +51,7 @@ func TestNew(t *testing.T) {
 					OriginalURL: originalURL,
 				},
 			}
-			rw     = getReadWriter(t, urls)
+			rw = getReadWriter(t, urls)
 		)
 
 		_, err := New(rw)
