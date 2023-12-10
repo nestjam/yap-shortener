@@ -5,13 +5,18 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"sync"
 
 	"github.com/nestjam/yap-shortener/internal/domain"
+	"github.com/nestjam/yap-shortener/internal/persistance/inmemory"
+	"github.com/pkg/errors"
 )
 
 type URLStore struct {
 	encoder *json.Encoder
-	urls    []StoredURL
+	s       *inmemory.URLStore
+	id      int
+	mu      sync.Mutex
 }
 
 type StoredURL struct {
@@ -21,19 +26,30 @@ type StoredURL struct {
 }
 
 func New(rw io.ReadWriter) (*URLStore, error) {
-	urls, err := getURLs(rw)
+	const op = "new file storage"
+	urls, err := readURLs(rw)
 
 	if err != nil {
-		return nil, fmt.Errorf("new file storage: %w", err)
+		return nil, errors.Wrap(err, op)
+	}
+
+	s := &inmemory.URLStore{}
+	ctx := context.Background()
+	for i := 0; i < len(urls); i++ {
+		err := s.Add(ctx, urls[i].ShortURL, urls[i].OriginalURL)
+
+		if err != nil {
+			return nil, errors.Wrap(err, op)
+		}
 	}
 
 	return &URLStore{
-		json.NewEncoder(rw),
-		urls,
+		encoder: json.NewEncoder(rw),
+		s:       &inmemory.URLStore{},
 	}, nil
 }
 
-func getURLs(rw io.ReadWriter) ([]StoredURL, error) {
+func readURLs(rw io.ReadWriter) ([]StoredURL, error) {
 	dec := json.NewDecoder(rw)
 	var urls []StoredURL
 
@@ -52,59 +68,70 @@ func getURLs(rw io.ReadWriter) ([]StoredURL, error) {
 }
 
 func (u *URLStore) Get(ctx context.Context, shortURL string) (string, error) {
-	if url, ok := u.findOriginalURL(shortURL); ok {
-		return url, nil
+	const op = "add"
+
+	originalURL, err := u.s.Get(ctx, shortURL)
+
+	if err != nil {
+		return "", errors.Wrap(err, op)
 	}
 
-	return "", domain.ErrOriginalURLNotFound
-}
-
-func (u *URLStore) findOriginalURL(shortURL string) (string, bool) {
-	for i := 0; i < len(u.urls); i++ {
-		if u.urls[i].ShortURL == shortURL {
-			return u.urls[i].OriginalURL, true
-		}
-	}
-	return "", false
+	return originalURL, nil
 }
 
 func (u *URLStore) Add(ctx context.Context, shortURL, originalURL string) error {
-	if shortURL, ok := u.findShortURL(originalURL); ok {
-		return domain.NewOriginalURLExistsError(shortURL, nil)
+	const op = "add"
+
+	err := u.s.Add(ctx, shortURL, originalURL)
+
+	if err != nil {
+		return errors.Wrap(err, op)
 	}
 
+	u.mu.Lock()
+	defer u.mu.Unlock()
+
+	u.id++
 	url := StoredURL{
-		ID:          len(u.urls),
+		ID:          u.id,
 		ShortURL:    shortURL,
 		OriginalURL: originalURL,
 	}
-	u.urls = append(u.urls, url)
-	err := u.encoder.Encode(url)
+	err = u.encoder.Encode(url)
 
 	if err != nil {
-		return fmt.Errorf("add url: %w", err)
+		return errors.Wrap(err, op)
 	}
 
 	return nil
 }
 
-func (u *URLStore) findShortURL(originalURL string) (string, bool) {
-	for i := 0; i < len(u.urls); i++ {
-		if u.urls[i].OriginalURL == originalURL {
-			return u.urls[i].ShortURL, true
-		}
-	}
-	return "", false
-}
-
 func (u *URLStore) AddBatch(ctx context.Context, pairs []domain.URLPair) error {
-	for _, p := range pairs {
-		err := u.Add(ctx, p.ShortURL, p.OriginalURL)
+	const op = "add batch"
+
+	err := u.s.AddBatch(ctx, pairs)
+
+	if err != nil {
+		return errors.Wrap(err, op)
+	}
+
+	u.mu.Lock()
+	defer u.mu.Unlock()
+
+	for i := 0; i < len(pairs); i++ {
+		u.id++
+		url := StoredURL{
+			ID:          u.id,
+			ShortURL:    pairs[i].ShortURL,
+			OriginalURL: pairs[i].OriginalURL,
+		}
+		err = u.encoder.Encode(url)
 
 		if err != nil {
-			return fmt.Errorf("add batch: %w", err)
+			return errors.Wrap(err, op)
 		}
 	}
+
 	return nil
 }
 
