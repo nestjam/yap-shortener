@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-const connString = "postgres://postgres:postgres@localhost:5432/praktikum"
+const connString = "postgres://postgres:postgres@localhost:5432/praktikum?sslmode=disable"
 
 func TestURLStore(t *testing.T) {
 	if testing.Short() {
@@ -28,7 +28,9 @@ func TestURLStore(t *testing.T) {
 
 			return store, func() {
 				store.Close()
-				dropTable(t)
+
+				migrator := NewURLStoreMigrator(connString)
+				_ = migrator.Drop()
 			}
 		},
 	}.Test(t)
@@ -48,19 +50,4 @@ func pingDB(t *testing.T, connString string) bool {
 	}()
 
 	return conn.Ping(context.Background()) == nil
-}
-
-func dropTable(t *testing.T) {
-	t.Helper()
-	conn, err := pgx.Connect(context.Background(), connString)
-
-	require.NoError(t, err)
-
-	defer func() {
-		_ = conn.Close(context.Background())
-	}()
-
-	_, err = conn.Exec(context.Background(), `DROP TABLE IF EXISTS url;`)
-
-	require.NoError(t, err)
 }

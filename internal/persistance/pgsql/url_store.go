@@ -11,6 +11,8 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/nestjam/yap-shortener/internal/domain"
 	"github.com/pkg/errors"
+
+	_ "github.com/golang-migrate/migrate/v4/database/postgres"
 )
 
 type URLStore struct {
@@ -26,6 +28,12 @@ func New(connString string) *URLStore {
 
 func (u *URLStore) Init() error {
 	const op = "init store"
+
+	migrator := NewURLStoreMigrator(u.connString)
+	if err := migrator.Up(); err != nil {
+		return errors.Wrapf(err, op)
+	}
+
 	ctx := context.Background()
 	var err error
 	u.pool, err = initPool(ctx, u.connString)
@@ -36,14 +44,6 @@ func (u *URLStore) Init() error {
 
 	conn, err := u.pool.Acquire(ctx)
 	defer conn.Release()
-
-	if err != nil {
-		return errors.Wrapf(err, op)
-	}
-
-	_, err = conn.Exec(ctx, `CREATE TABLE IF NOT EXISTS url(id SERIAL PRIMARY KEY,
-		short_url VARCHAR(255),
-		original_url TEXT UNIQUE);`)
 
 	if err != nil {
 		return errors.Wrapf(err, op)
