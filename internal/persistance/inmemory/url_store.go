@@ -15,7 +15,7 @@ func New() *URLStore {
 	return &URLStore{}
 }
 
-func (u *URLStore) Get(ctx context.Context, shortURL string) (string, error) {
+func (u *URLStore) GetOriginalURL(ctx context.Context, shortURL string) (string, error) {
 	url, ok := u.m.Load(shortURL)
 	if !ok {
 		return "", domain.ErrOriginalURLNotFound
@@ -23,7 +23,7 @@ func (u *URLStore) Get(ctx context.Context, shortURL string) (string, error) {
 	return url.(string), nil
 }
 
-func (u *URLStore) Add(ctx context.Context, shortURL, originalURL string) error {
+func (u *URLStore) AddURL(ctx context.Context, shortURL, originalURL string) error {
 	if shortURL, ok := u.findShortURL(originalURL); ok {
 		return domain.NewOriginalURLExistsError(shortURL, nil)
 	}
@@ -48,7 +48,7 @@ func (u *URLStore) findShortURL(originalURL string) (string, bool) {
 	return shortURL, ok
 }
 
-func (u *URLStore) AddBatch(ctx context.Context, pairs []domain.URLPair) error {
+func (u *URLStore) AddURLs(ctx context.Context, pairs []domain.URLPair) error {
 	for _, p := range pairs {
 		u.m.Store(p.ShortURL, p.OriginalURL)
 	}

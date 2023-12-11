@@ -84,7 +84,7 @@ func TestAdd(t *testing.T) {
 			sut, _ = New(rw)
 		)
 
-		err := sut.Add(context.Background(), shortURL, originalURL)
+		err := sut.AddURL(context.Background(), shortURL, originalURL)
 		require.NoError(t, err)
 
 		assertStoredURL(t, want, rw)
@@ -121,7 +121,7 @@ func TestAddBatch(t *testing.T) {
 			sut, _ = New(rw)
 		)
 
-		err := sut.AddBatch(context.Background(), urls)
+		err := sut.AddURLs(context.Background(), urls)
 
 		require.NoError(t, err)
 		assertStoredURLs(t, want, rw)

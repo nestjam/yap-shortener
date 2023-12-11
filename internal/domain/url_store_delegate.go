@@ -6,22 +6,22 @@ import (
 )
 
 type URLStoreDelegate struct {
-	GetFunc         func(ctx context.Context, shortURL string) (string, error)
-	AddFunc         func(ctx context.Context, shortURL, url string) error
-	AddBatchFunc    func(ctx context.Context, pairs []URLPair) error
-	IsAvailableFunc func(ctx context.Context) bool
-	delegate        URLStore
+	GetOriginalURLFunc func(ctx context.Context, shortURL string) (string, error)
+	AddURLFunc         func(ctx context.Context, shortURL, url string) error
+	AddURLsFunc        func(ctx context.Context, pairs []URLPair) error
+	IsAvailableFunc    func(ctx context.Context) bool
+	delegate           URLStore
 }
 
 func NewURLStoreDelegate(delegate URLStore) *URLStoreDelegate {
 	return &URLStoreDelegate{delegate: delegate}
 }
 
-func (u *URLStoreDelegate) Get(ctx context.Context, shortURL string) (string, error) {
-	if u.GetFunc != nil {
-		return u.GetFunc(ctx, shortURL)
+func (u *URLStoreDelegate) GetOriginalURL(ctx context.Context, shortURL string) (string, error) {
+	if u.GetOriginalURLFunc != nil {
+		return u.GetOriginalURLFunc(ctx, shortURL)
 	}
-	url, err := u.delegate.Get(ctx, shortURL)
+	url, err := u.delegate.GetOriginalURL(ctx, shortURL)
 
 	if err != nil {
 		return "", fmt.Errorf("get url from store delegate: %w", err)
@@ -30,11 +30,11 @@ func (u *URLStoreDelegate) Get(ctx context.Context, shortURL string) (string, er
 	return url, nil
 }
 
-func (u *URLStoreDelegate) Add(ctx context.Context, shortURL, url string) error {
-	if u.AddFunc != nil {
-		return u.AddFunc(ctx, shortURL, url)
+func (u *URLStoreDelegate) AddURL(ctx context.Context, shortURL, url string) error {
+	if u.AddURLFunc != nil {
+		return u.AddURLFunc(ctx, shortURL, url)
 	}
-	err := u.delegate.Add(ctx, shortURL, url)
+	err := u.delegate.AddURL(ctx, shortURL, url)
 
 	if err != nil {
 		return fmt.Errorf("add url to store delegate: %w", err)
@@ -51,12 +51,12 @@ func (u *URLStoreDelegate) IsAvailable(ctx context.Context) bool {
 	return u.delegate.IsAvailable(ctx)
 }
 
-func (u *URLStoreDelegate) AddBatch(ctx context.Context, pairs []URLPair) error {
-	if u.AddBatchFunc != nil {
-		return u.AddBatchFunc(ctx, pairs)
+func (u *URLStoreDelegate) AddURLs(ctx context.Context, pairs []URLPair) error {
+	if u.AddURLsFunc != nil {
+		return u.AddURLsFunc(ctx, pairs)
 	}
 
-	err := u.delegate.AddBatch(ctx, pairs)
+	err := u.delegate.AddURLs(ctx, pairs)
 
 	if err != nil {
 		return fmt.Errorf("add batch of urls to store delegate: %w", err)

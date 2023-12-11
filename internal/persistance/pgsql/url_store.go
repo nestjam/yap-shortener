@@ -80,7 +80,7 @@ func initPool(ctx context.Context, connString string) (*pgxpool.Pool, error) {
 	return pool, nil
 }
 
-func (u *URLStore) Get(ctx context.Context, shortURL string) (string, error) {
+func (u *URLStore) GetOriginalURL(ctx context.Context, shortURL string) (string, error) {
 	const op = "get original url"
 	conn, err := u.pool.Acquire(ctx)
 	defer conn.Release()
@@ -99,7 +99,7 @@ func (u *URLStore) Get(ctx context.Context, shortURL string) (string, error) {
 	return originalURL, nil
 }
 
-func (u *URLStore) Add(ctx context.Context, shortURL, originalURL string) error {
+func (u *URLStore) AddURL(ctx context.Context, shortURL, originalURL string) error {
 	const op = "add url"
 
 	conn, err := u.pool.Acquire(ctx)
@@ -142,7 +142,7 @@ func getShortURL(ctx context.Context, conn *pgxpool.Conn, originalURL string) (s
 	return shortURL, nil
 }
 
-func (u *URLStore) AddBatch(ctx context.Context, pairs []domain.URLPair) error {
+func (u *URLStore) AddURLs(ctx context.Context, pairs []domain.URLPair) error {
 	const op = "add batch of urls"
 	conn, err := u.pool.Acquire(ctx)
 	defer conn.Release()

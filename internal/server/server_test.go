@@ -59,7 +59,7 @@ func (u URLShortenerTest) Test(t *testing.T) {
 			)
 			urlStore, cleanup := u.CreateDependencies()
 			t.Cleanup(cleanup)
-			err := urlStore.Add(context.Background(), shortURL, testURL)
+			err := urlStore.AddURL(context.Background(), shortURL, testURL)
 			require.NoError(t, err)
 			sut := New(urlStore, baseURL, zap.NewNop())
 			request := newGetRequest(shortURL)
@@ -200,7 +200,7 @@ func (u URLShortenerTest) Test(t *testing.T) {
 			urlStore, cleanup := u.CreateDependencies()
 			t.Cleanup(cleanup)
 			failingURLStore := domain.NewURLStoreDelegate(urlStore)
-			failingURLStore.AddFunc = func(ctx context.Context, shortURL, url string) error {
+			failingURLStore.AddURLFunc = func(ctx context.Context, shortURL, url string) error {
 				return errors.New("failed to add url")
 			}
 			sut := New(failingURLStore, baseURL, zap.NewNop())
@@ -343,7 +343,7 @@ func (u URLShortenerTest) Test(t *testing.T) {
 			urlStore, cleanup := u.CreateDependencies()
 			t.Cleanup(cleanup)
 			failingURLStore := domain.NewURLStoreDelegate(urlStore)
-			failingURLStore.AddFunc = func(ctx context.Context, shortURL, url string) error {
+			failingURLStore.AddURLFunc = func(ctx context.Context, shortURL, url string) error {
 				return errors.New("failed to add url")
 			}
 			sut := New(failingURLStore, baseURL, zap.NewNop())
@@ -529,7 +529,7 @@ func (u URLShortenerTest) Test(t *testing.T) {
 			urlStore, cleanup := u.CreateDependencies()
 			t.Cleanup(cleanup)
 			failingURLStore := domain.NewURLStoreDelegate(urlStore)
-			failingURLStore.AddBatchFunc = func(ctx context.Context, pairs []domain.URLPair) error {
+			failingURLStore.AddURLsFunc = func(ctx context.Context, pairs []domain.URLPair) error {
 				return errors.New("failed to add url")
 			}
 			sut := New(failingURLStore, baseURL, zap.NewNop())
@@ -557,7 +557,7 @@ func assertShortURLs(t *testing.T, req []OriginalURL, r io.Reader, store domain.
 
 		require.NoError(t, err)
 
-		got, err := store.Get(context.Background(), strings.Trim(urlPath, "/"))
+		got, err := store.GetOriginalURL(context.Background(), strings.Trim(urlPath, "/"))
 
 		require.NoError(t, err)
 
@@ -722,7 +722,7 @@ func assertRedirectURL(t *testing.T, url string, urlStore domain.URLStore) {
 
 	require.NoError(t, err)
 
-	got, err := urlStore.Get(context.Background(), strings.Trim(urlPath, "/"))
+	got, err := urlStore.GetOriginalURL(context.Background(), strings.Trim(urlPath, "/"))
 
 	require.NoError(t, err)
 

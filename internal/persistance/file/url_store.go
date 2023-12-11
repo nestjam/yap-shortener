@@ -36,7 +36,7 @@ func New(rw io.ReadWriter) (*URLStore, error) {
 	s := &inmemory.URLStore{}
 	ctx := context.Background()
 	for i := 0; i < len(urls); i++ {
-		err := s.Add(ctx, urls[i].ShortURL, urls[i].OriginalURL)
+		err := s.AddURL(ctx, urls[i].ShortURL, urls[i].OriginalURL)
 
 		if err != nil {
 			return nil, errors.Wrap(err, op)
@@ -67,10 +67,10 @@ func readURLs(rw io.ReadWriter) ([]StoredURL, error) {
 	return urls, nil
 }
 
-func (u *URLStore) Get(ctx context.Context, shortURL string) (string, error) {
+func (u *URLStore) GetOriginalURL(ctx context.Context, shortURL string) (string, error) {
 	const op = "add"
 
-	originalURL, err := u.s.Get(ctx, shortURL)
+	originalURL, err := u.s.GetOriginalURL(ctx, shortURL)
 
 	if err != nil {
 		return "", errors.Wrap(err, op)
@@ -79,10 +79,10 @@ func (u *URLStore) Get(ctx context.Context, shortURL string) (string, error) {
 	return originalURL, nil
 }
 
-func (u *URLStore) Add(ctx context.Context, shortURL, originalURL string) error {
+func (u *URLStore) AddURL(ctx context.Context, shortURL, originalURL string) error {
 	const op = "add"
 
-	err := u.s.Add(ctx, shortURL, originalURL)
+	err := u.s.AddURL(ctx, shortURL, originalURL)
 
 	if err != nil {
 		return errors.Wrap(err, op)
@@ -106,10 +106,10 @@ func (u *URLStore) Add(ctx context.Context, shortURL, originalURL string) error 
 	return nil
 }
 
-func (u *URLStore) AddBatch(ctx context.Context, pairs []domain.URLPair) error {
+func (u *URLStore) AddURLs(ctx context.Context, pairs []domain.URLPair) error {
 	const op = "add batch"
 
-	err := u.s.AddBatch(ctx, pairs)
+	err := u.s.AddURLs(ctx, pairs)
 
 	if err != nil {
 		return errors.Wrap(err, op)

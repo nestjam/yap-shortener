@@ -44,9 +44,9 @@ type URLPair struct {
 }
 
 type URLStore interface {
-	Get(ctx context.Context, shortURL string) (string, error)
-	Add(ctx context.Context, shortURL, originalURL string) error
-	AddBatch(ctx context.Context, pairs []URLPair) error
+	GetOriginalURL(ctx context.Context, shortURL string) (string, error)
+	AddURL(ctx context.Context, shortURL, originalURL string) error
+	AddURLs(ctx context.Context, pairs []URLPair) error
 	IsAvailable(ctx context.Context) bool
 }
 
@@ -63,11 +63,11 @@ func (c URLStoreContract) Test(t *testing.T) {
 		sut, tearDown := c.NewURLStore()
 		t.Cleanup(tearDown)
 
-		err := sut.Add(context.Background(), shortURL, originalURL)
+		err := sut.AddURL(context.Background(), shortURL, originalURL)
 
 		assert.NoError(t, err)
 
-		got, err := sut.Get(context.Background(), shortURL)
+		got, err := sut.GetOriginalURL(context.Background(), shortURL)
 
 		require.NoError(t, err)
 		assert.Equal(t, originalURL, got)
@@ -77,7 +77,7 @@ func (c URLStoreContract) Test(t *testing.T) {
 		sut, tearDown := c.NewURLStore()
 		t.Cleanup(tearDown)
 
-		_, err := sut.Get(context.Background(), "123")
+		_, err := sut.GetOriginalURL(context.Background(), "123")
 		assert.ErrorIs(t, err, ErrOriginalURLNotFound)
 	})
 
@@ -103,12 +103,12 @@ func (c URLStoreContract) Test(t *testing.T) {
 		sut, tearDown := c.NewURLStore()
 		t.Cleanup(tearDown)
 
-		err := sut.AddBatch(context.Background(), pairs)
+		err := sut.AddURLs(context.Background(), pairs)
 
 		assert.NoError(t, err)
 
 		for i := 0; i < len(pairs); i++ {
-			got, err := sut.Get(context.Background(), pairs[i].ShortURL)
+			got, err := sut.GetOriginalURL(context.Background(), pairs[i].ShortURL)
 			require.NoError(t, err)
 			assert.Equal(t, pairs[i].OriginalURL, got)
 		}
@@ -124,11 +124,11 @@ func (c URLStoreContract) Test(t *testing.T) {
 		sut, tearDown := c.NewURLStore()
 		t.Cleanup(tearDown)
 
-		err := sut.Add(ctx, shortURL, originalURL)
+		err := sut.AddURL(ctx, shortURL, originalURL)
 
 		require.NoError(t, err)
 
-		got := sut.Add(ctx, shortURL, originalURL)
+		got := sut.AddURL(ctx, shortURL, originalURL)
 
 		assert.ErrorAs(t, got, &want)
 		assert.Equal(t, shortURL, want.GetShortURL())
