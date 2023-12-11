@@ -107,12 +107,12 @@ func (u *FileURLStore) AddURL(ctx context.Context, shortURL, originalURL string)
 }
 
 func (u *FileURLStore) AddURLs(ctx context.Context, pairs []domain.URLPair) error {
-	const op = "add URLs"
+	const msg = "failed to add URLs"
 
 	err := u.s.AddURLs(ctx, pairs)
 
 	if err != nil {
-		return errors.Wrap(err, op)
+		return errors.Wrap(err, msg)
 	}
 
 	u.mu.Lock()
@@ -128,7 +128,7 @@ func (u *FileURLStore) AddURLs(ctx context.Context, pairs []domain.URLPair) erro
 		u.id++
 
 		if err != nil {
-			return errors.Wrap(err, op)
+			return errors.Wrap(err, msg)
 		}
 	}
 
