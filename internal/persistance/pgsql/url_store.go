@@ -15,18 +15,18 @@ import (
 	_ "github.com/golang-migrate/migrate/v4/database/postgres"
 )
 
-type URLStore struct {
+type PostgresURLStore struct {
 	pool       *pgxpool.Pool
 	connString string
 }
 
-func New(connString string) *URLStore {
-	return &URLStore{
+func New(connString string) *PostgresURLStore {
+	return &PostgresURLStore{
 		connString: connString,
 	}
 }
 
-func (u *URLStore) Init() error {
+func (u *PostgresURLStore) Init() error {
 	const op = "init store"
 
 	migrator := NewURLStoreMigrator(u.connString)
@@ -45,7 +45,7 @@ func (u *URLStore) Init() error {
 	return nil
 }
 
-func (u *URLStore) Close() {
+func (u *PostgresURLStore) Close() {
 	if u.pool == nil {
 		return
 	}
@@ -73,7 +73,7 @@ func initPool(ctx context.Context, connString string) (*pgxpool.Pool, error) {
 	return pool, nil
 }
 
-func (u *URLStore) GetOriginalURL(ctx context.Context, shortURL string) (string, error) {
+func (u *PostgresURLStore) GetOriginalURL(ctx context.Context, shortURL string) (string, error) {
 	const op = "get original URL"
 	conn, err := u.pool.Acquire(ctx)
 	defer conn.Release()
@@ -92,7 +92,7 @@ func (u *URLStore) GetOriginalURL(ctx context.Context, shortURL string) (string,
 	return originalURL, nil
 }
 
-func (u *URLStore) AddURL(ctx context.Context, shortURL, originalURL string) error {
+func (u *PostgresURLStore) AddURL(ctx context.Context, shortURL, originalURL string) error {
 	const op = "add URL"
 
 	conn, err := u.pool.Acquire(ctx)
@@ -151,7 +151,7 @@ func getShortURL(ctx context.Context, conn *pgxpool.Conn, originalURL string) (s
 	return shortURL, nil
 }
 
-func (u *URLStore) AddURLs(ctx context.Context, pairs []domain.URLPair) error {
+func (u *PostgresURLStore) AddURLs(ctx context.Context, pairs []domain.URLPair) error {
 	const op = "add URLs"
 	conn, err := u.pool.Acquire(ctx)
 	defer conn.Release()
@@ -202,7 +202,7 @@ func prepareInsert(pairs []domain.URLPair) (string, []any) {
 	return strings.TrimSuffix(b.String(), ","), params
 }
 
-func (u *URLStore) IsAvailable(ctx context.Context) bool {
+func (u *PostgresURLStore) IsAvailable(ctx context.Context) bool {
 	conn, err := u.pool.Acquire(ctx)
 	defer conn.Release()
 

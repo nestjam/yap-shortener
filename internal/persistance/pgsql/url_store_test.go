@@ -11,7 +11,7 @@ import (
 
 const connString = "postgres://postgres:postgres@localhost:5432/praktikum?sslmode=disable"
 
-func TestURLStore(t *testing.T) {
+func TestPostgresURLStore(t *testing.T) {
 	if testing.Short() {
 		t.Skip("Skipping long-running test.")
 	}

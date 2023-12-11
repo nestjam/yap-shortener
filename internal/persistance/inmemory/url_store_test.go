@@ -6,7 +6,7 @@ import (
 	"github.com/nestjam/yap-shortener/internal/domain"
 )
 
-func TestURLStore(t *testing.T) {
+func TestInmemoryURLStore(t *testing.T) {
 	domain.URLStoreContract{
 		NewURLStore: func() (domain.URLStore, func()) {
 			t.Helper()

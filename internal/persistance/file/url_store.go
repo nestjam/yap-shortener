@@ -12,9 +12,9 @@ import (
 	"github.com/pkg/errors"
 )
 
-type URLStore struct {
+type FileURLStore struct {
 	encoder *json.Encoder
-	s       *inmemory.URLStore
+	s       *inmemory.InmemoryURLStore
 	id      int
 	mu      sync.Mutex
 }
@@ -25,7 +25,7 @@ type StoredURL struct {
 	ID          int    `json:"uuid"`
 }
 
-func New(rw io.ReadWriter) (*URLStore, error) {
+func New(rw io.ReadWriter) (*FileURLStore, error) {
 	const op = "new file storage"
 	urls, err := readURLs(rw)
 
@@ -33,7 +33,7 @@ func New(rw io.ReadWriter) (*URLStore, error) {
 		return nil, errors.Wrap(err, op)
 	}
 
-	s := &inmemory.URLStore{}
+	s := &inmemory.InmemoryURLStore{}
 	ctx := context.Background()
 	for i := 0; i < len(urls); i++ {
 		err := s.AddURL(ctx, urls[i].ShortURL, urls[i].OriginalURL)
@@ -43,9 +43,9 @@ func New(rw io.ReadWriter) (*URLStore, error) {
 		}
 	}
 
-	return &URLStore{
+	return &FileURLStore{
 		encoder: json.NewEncoder(rw),
-		s:       &inmemory.URLStore{},
+		s:       &inmemory.InmemoryURLStore{},
 	}, nil
 }
 
@@ -67,7 +67,7 @@ func readURLs(rw io.ReadWriter) ([]StoredURL, error) {
 	return urls, nil
 }
 
-func (u *URLStore) GetOriginalURL(ctx context.Context, shortURL string) (string, error) {
+func (u *FileURLStore) GetOriginalURL(ctx context.Context, shortURL string) (string, error) {
 	const op = "get original URL"
 
 	originalURL, err := u.s.GetOriginalURL(ctx, shortURL)
@@ -79,7 +79,7 @@ func (u *URLStore) GetOriginalURL(ctx context.Context, shortURL string) (string,
 	return originalURL, nil
 }
 
-func (u *URLStore) AddURL(ctx context.Context, shortURL, originalURL string) error {
+func (u *FileURLStore) AddURL(ctx context.Context, shortURL, originalURL string) error {
 	const op = "add URL"
 
 	err := u.s.AddURL(ctx, shortURL, originalURL)
@@ -106,7 +106,7 @@ func (u *URLStore) AddURL(ctx context.Context, shortURL, originalURL string) err
 	return nil
 }
 
-func (u *URLStore) AddURLs(ctx context.Context, pairs []domain.URLPair) error {
+func (u *FileURLStore) AddURLs(ctx context.Context, pairs []domain.URLPair) error {
 	const op = "add URLs"
 
 	err := u.s.AddURLs(ctx, pairs)
@@ -135,6 +135,6 @@ func (u *URLStore) AddURLs(ctx context.Context, pairs []domain.URLPair) error {
 	return nil
 }
 
-func (u *URLStore) IsAvailable(ctx context.Context) bool {
+func (u *FileURLStore) IsAvailable(ctx context.Context) bool {
 	return true
 }

@@ -7,15 +7,15 @@ import (
 	"github.com/nestjam/yap-shortener/internal/domain"
 )
 
-type URLStore struct {
+type InmemoryURLStore struct {
 	m sync.Map
 }
 
-func New() *URLStore {
-	return &URLStore{}
+func New() *InmemoryURLStore {
+	return &InmemoryURLStore{}
 }
 
-func (u *URLStore) GetOriginalURL(ctx context.Context, shortURL string) (string, error) {
+func (u *InmemoryURLStore) GetOriginalURL(ctx context.Context, shortURL string) (string, error) {
 	url, ok := u.m.Load(shortURL)
 	if !ok {
 		return "", domain.ErrOriginalURLNotFound
@@ -23,7 +23,7 @@ func (u *URLStore) GetOriginalURL(ctx context.Context, shortURL string) (string,
 	return url.(string), nil
 }
 
-func (u *URLStore) AddURL(ctx context.Context, shortURL, originalURL string) error {
+func (u *InmemoryURLStore) AddURL(ctx context.Context, shortURL, originalURL string) error {
 	if shortURL, ok := u.findShortURL(originalURL); ok {
 		return domain.NewOriginalURLExistsError(shortURL, nil)
 	}
@@ -32,7 +32,7 @@ func (u *URLStore) AddURL(ctx context.Context, shortURL, originalURL string) err
 	return nil
 }
 
-func (u *URLStore) findShortURL(originalURL string) (string, bool) {
+func (u *InmemoryURLStore) findShortURL(originalURL string) (string, bool) {
 	shortURL := ""
 	ok := false
 
@@ -48,13 +48,13 @@ func (u *URLStore) findShortURL(originalURL string) (string, bool) {
 	return shortURL, ok
 }
 
-func (u *URLStore) AddURLs(ctx context.Context, pairs []domain.URLPair) error {
+func (u *InmemoryURLStore) AddURLs(ctx context.Context, pairs []domain.URLPair) error {
 	for _, p := range pairs {
 		u.m.Store(p.ShortURL, p.OriginalURL)
 	}
 	return nil
 }
 
-func (u *URLStore) IsAvailable(ctx context.Context) bool {
+func (u *InmemoryURLStore) IsAvailable(ctx context.Context) bool {
 	return true
 }

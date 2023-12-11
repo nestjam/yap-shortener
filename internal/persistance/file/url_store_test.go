@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestURLStore(t *testing.T) {
+func TestFileURLStore(t *testing.T) {
 	if testing.Short() {
 		t.Skip("Skipping long-running test.")
 	}
