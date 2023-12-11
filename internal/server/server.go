@@ -95,7 +95,8 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) redirect(w http.ResponseWriter, r *http.Request) {
 	key := chi.URLParam(r, "key")
-	url, err := s.storage.GetOriginalURL(r.Context(), key)
+	ctx := r.Context()
+	url, err := s.storage.GetOriginalURL(ctx, key)
 
 	if errors.Is(err, domain.ErrOriginalURLNotFound) {
 		notFound(w, err.Error())
@@ -119,8 +120,9 @@ func (s *Server) shorten(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	ctx := r.Context()
 	shortURL := shortener.Shorten(uuid.New().ID())
-	err = s.storage.AddURL(r.Context(), shortURL, string(body))
+	err = s.storage.AddURL(ctx, shortURL, string(body))
 
 	var originalURLAlreadyExists *domain.OriginalURLExistsError
 	if err != nil && !errors.As(err, &originalURLAlreadyExists) {
@@ -158,8 +160,9 @@ func (s *Server) shortenAPI(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	ctx := r.Context()
 	shortURL := shortener.Shorten(uuid.New().ID())
-	err = s.storage.AddURL(r.Context(), shortURL, req.URL)
+	err = s.storage.AddURL(ctx, shortURL, req.URL)
 
 	var originalURLAlreadyExists *domain.OriginalURLExistsError
 	if err != nil && !errors.As(err, &originalURLAlreadyExists) {
@@ -194,7 +197,8 @@ func (s *Server) shortenAPI(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) ping(w http.ResponseWriter, r *http.Request) {
 	status := http.StatusInternalServerError
-	if s.storage.IsAvailable(r.Context()) {
+	ctx := r.Context()
+	if s.storage.IsAvailable(ctx) {
 		status = http.StatusOK
 	}
 	w.WriteHeader(status)
@@ -223,7 +227,8 @@ func (s *Server) shortenBatchAPI(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	err = s.storage.AddURLs(r.Context(), urlPairs)
+	ctx := r.Context()
+	err = s.storage.AddURLs(ctx, urlPairs)
 
 	if err != nil {
 		internalError(w, failedToStoreURLMessage)

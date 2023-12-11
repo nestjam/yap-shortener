@@ -10,7 +10,7 @@ import (
 	"github.com/golang-migrate/migrate/v4/source/iofs"
 )
 
-//go:embed migrations/*.sql
+//go:embed migration/*.sql
 var migrationsDir embed.FS
 
 type URLStoreMigrator struct {
@@ -41,7 +41,7 @@ func (u *URLStoreMigrator) Up() error {
 func createMigrate(connString string) (*migrate.Migrate, error) {
 	const (
 		op             = "create migrate"
-		migrationsPath = "migrations"
+		migrationsPath = "migration"
 	)
 	d, err := iofs.New(migrationsDir, migrationsPath)
 
