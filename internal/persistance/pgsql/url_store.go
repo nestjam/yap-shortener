@@ -102,11 +102,21 @@ func (u *URLStore) AddURL(ctx context.Context, shortURL, originalURL string) err
 		return errors.Wrapf(err, op)
 	}
 
-	_, err = conn.Exec(ctx, "INSERT INTO url (short_url, original_url) VALUES ($1, $2)",
+	var txOptions pgx.TxOptions
+	tx, err := conn.BeginTx(ctx, txOptions)
+
+	if err != nil {
+		return errors.Wrapf(err, op)
+	}
+
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	_, err = tx.Exec(ctx, "INSERT INTO url (short_url, original_url) VALUES ($1, $2)",
 		shortURL, originalURL)
 
 	var pgErr *pgconn.PgError
 	if errors.As(err, &pgErr) && pgErr.Code == pgerrcode.UniqueViolation {
+		_ = tx.Rollback(ctx)
 		shortURL, err := getShortURL(ctx, conn, originalURL)
 
 		if err != nil {
@@ -115,6 +125,12 @@ func (u *URLStore) AddURL(ctx context.Context, shortURL, originalURL string) err
 
 		return domain.NewOriginalURLExistsError(shortURL, nil)
 	}
+
+	if err != nil {
+		return errors.Wrapf(err, op)
+	}
+
+	err = tx.Commit(ctx)
 
 	if err != nil {
 		return errors.Wrapf(err, op)
@@ -151,9 +167,7 @@ func (u *URLStore) AddURLs(ctx context.Context, pairs []domain.URLPair) error {
 		return errors.Wrapf(err, op)
 	}
 
-	defer func() {
-		_ = tx.Rollback(ctx)
-	}()
+	defer func() { _ = tx.Rollback(ctx) }()
 
 	stmt, params := prepareInsert(pairs)
 	_, err = tx.Exec(ctx, stmt, params...)
