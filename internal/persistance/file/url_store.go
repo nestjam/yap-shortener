@@ -68,7 +68,7 @@ func readURLs(rw io.ReadWriter) ([]StoredURL, error) {
 }
 
 func (u *URLStore) GetOriginalURL(ctx context.Context, shortURL string) (string, error) {
-	const op = "add"
+	const op = "get original URL"
 
 	originalURL, err := u.s.GetOriginalURL(ctx, shortURL)
 
@@ -80,7 +80,7 @@ func (u *URLStore) GetOriginalURL(ctx context.Context, shortURL string) (string,
 }
 
 func (u *URLStore) AddURL(ctx context.Context, shortURL, originalURL string) error {
-	const op = "add"
+	const op = "add URL"
 
 	err := u.s.AddURL(ctx, shortURL, originalURL)
 
@@ -107,7 +107,7 @@ func (u *URLStore) AddURL(ctx context.Context, shortURL, originalURL string) err
 }
 
 func (u *URLStore) AddURLs(ctx context.Context, pairs []domain.URLPair) error {
-	const op = "add batch"
+	const op = "add URLs"
 
 	err := u.s.AddURLs(ctx, pairs)
 
