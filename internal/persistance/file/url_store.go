@@ -25,7 +25,7 @@ type StoredURL struct {
 	ID          int    `json:"uuid"`
 }
 
-func New(rw io.ReadWriter) (*FileURLStore, error) {
+func New(ctx context.Context, rw io.ReadWriter) (*FileURLStore, error) {
 	const op = "new file storage"
 	urls, err := readURLs(rw)
 
@@ -34,7 +34,6 @@ func New(rw io.ReadWriter) (*FileURLStore, error) {
 	}
 
 	s := &inmemory.InmemoryURLStore{}
-	ctx := context.Background()
 	for i := 0; i < len(urls); i++ {
 		err := s.AddURL(ctx, urls[i].ShortURL, urls[i].OriginalURL)
 

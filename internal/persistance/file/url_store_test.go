@@ -23,7 +23,7 @@ func TestFileURLStore(t *testing.T) {
 
 			require.NoError(t, err)
 
-			store, err := New(f)
+			store, err := New(context.Background(), f)
 
 			require.NoError(t, err)
 
@@ -54,7 +54,7 @@ func TestNew(t *testing.T) {
 			rw = getReadWriter(t, urls)
 		)
 
-		_, err := New(rw)
+		_, err := New(context.Background(), rw)
 
 		var want *domain.OriginalURLExistsError
 		require.ErrorAs(t, err, &want)
@@ -65,7 +65,7 @@ func TestGet(t *testing.T) {
 	t.Run("invalid data", func(t *testing.T) {
 		data := "invalid_data"
 		rw := bytes.NewBuffer([]byte(data))
-		_, err := New(rw)
+		_, err := New(context.Background(), rw)
 
 		assert.Error(t, err)
 	})
@@ -81,7 +81,7 @@ func TestAdd(t *testing.T) {
 			want   = StoredURL{ID: 0, ShortURL: shortURL, OriginalURL: originalURL}
 			urls   = []StoredURL{}
 			rw     = getReadWriter(t, urls)
-			sut, _ = New(rw)
+			sut, _ = New(context.Background(), rw)
 		)
 
 		err := sut.AddURL(context.Background(), shortURL, originalURL)
@@ -118,7 +118,7 @@ func TestAddBatch(t *testing.T) {
 			}
 			stored = []StoredURL{}
 			rw     = getReadWriter(t, stored)
-			sut, _ = New(rw)
+			sut, _ = New(context.Background(), rw)
 		)
 
 		err := sut.AddURLs(context.Background(), urls)

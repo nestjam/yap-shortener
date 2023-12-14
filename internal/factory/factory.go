@@ -1,12 +1,13 @@
 package factory
 
 import (
+	"context"
 	"fmt"
 	"os"
 
 	conf "github.com/nestjam/yap-shortener/internal/config"
 	"github.com/nestjam/yap-shortener/internal/domain"
-	f "github.com/nestjam/yap-shortener/internal/persistance/file"
+	filestore "github.com/nestjam/yap-shortener/internal/persistance/file"
 	"github.com/nestjam/yap-shortener/internal/persistance/inmemory"
 	"github.com/nestjam/yap-shortener/internal/persistance/pgsql"
 	"go.uber.org/zap"
@@ -16,7 +17,7 @@ const (
 	eventKey = "event"
 )
 
-func NewStorage(conf conf.Config, logger *zap.Logger) (domain.URLStore, func()) {
+func NewStorage(ctx context.Context, conf conf.Config, logger *zap.Logger) (domain.URLStore, func()) {
 	if conf.DataSourceName != "" {
 		logger.Info("Using sql storage")
 		store := pgsql.New(conf.DataSourceName)
@@ -31,21 +32,21 @@ func NewStorage(conf conf.Config, logger *zap.Logger) (domain.URLStore, func()) 
 
 	if conf.FileStoragePath != "" {
 		logger.Info("Using file storage", zap.String("path", conf.FileStoragePath))
-		return newFileStorage(conf, logger)
+		return newFileStorage(ctx, conf, logger)
 	}
 
 	logger.Info("Using in-memory storage")
 	return inmemory.New(), func() {}
 }
 
-func newFileStorage(conf conf.Config, logger *zap.Logger) (domain.URLStore, func()) {
+func newFileStorage(ctx context.Context, conf conf.Config, logger *zap.Logger) (domain.URLStore, func()) {
 	const ownerReadWritePermission os.FileMode = 0600
 	file, err := os.OpenFile(conf.FileStoragePath, os.O_RDWR|os.O_CREATE|os.O_APPEND, ownerReadWritePermission)
 	if err != nil {
 		logger.Fatal(err.Error(), zap.String(eventKey, "open file"))
 	}
 
-	store, err := f.New(file)
+	store, err := filestore.New(ctx, file)
 	if err != nil {
 		logger.Fatal(err.Error(), zap.String(eventKey, "create storage"))
 	}

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"net/http"
 	"os"
 
@@ -23,7 +24,7 @@ func main() {
 	logger, tearDownLogger := factory.NewLogger()
 	defer tearDownLogger()
 
-	storage, tearDownStorage := factory.NewStorage(config, logger)
+	storage, tearDownStorage := factory.NewStorage(context.Background(), config, logger)
 	defer tearDownStorage()
 
 	server := server.New(storage, config.BaseURL, logger)
