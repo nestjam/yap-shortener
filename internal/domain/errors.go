@@ -25,10 +25,6 @@ func (u *OriginalURLExistsError) Error() string {
 	return fmt.Sprintf("original URL already exists: %v", u.err.Error())
 }
 
-func (u *OriginalURLExistsError) Unwrap() error {
-	return u.err
-}
-
 func (u *OriginalURLExistsError) GetShortURL() string {
 	return u.shortURL
 }
