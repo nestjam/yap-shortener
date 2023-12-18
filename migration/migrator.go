@@ -1,4 +1,4 @@
-package pgsql
+package migration
 
 import (
 	"embed"
@@ -10,7 +10,7 @@ import (
 	"github.com/golang-migrate/migrate/v4/source/iofs"
 )
 
-//go:embed migration/*.sql
+//go:embed *.sql
 var migrationsDir embed.FS
 
 type URLStoreMigrator struct {
@@ -41,7 +41,7 @@ func (u *URLStoreMigrator) Up() error {
 func createMigrate(connString string) (*migrate.Migrate, error) {
 	const (
 		op             = "create migrate"
-		migrationsPath = "migration"
+		migrationsPath = "."
 	)
 	d, err := iofs.New(migrationsDir, migrationsPath)
 

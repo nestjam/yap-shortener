@@ -6,6 +6,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/nestjam/yap-shortener/internal/domain"
+	"github.com/nestjam/yap-shortener/migration"
 	"github.com/stretchr/testify/require"
 )
 
@@ -29,7 +30,7 @@ func TestPostgresURLStore(t *testing.T) {
 			return store, func() {
 				store.Close()
 
-				migrator := NewURLStoreMigrator(connString)
+				migrator := migration.NewURLStoreMigrator(connString)
 				_ = migrator.Drop()
 			}
 		},

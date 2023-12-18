@@ -10,6 +10,7 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/nestjam/yap-shortener/internal/domain"
+	"github.com/nestjam/yap-shortener/migration"
 	"github.com/pkg/errors"
 
 	_ "github.com/golang-migrate/migrate/v4/database/postgres"
@@ -29,7 +30,7 @@ func New(connString string) *PostgresURLStore {
 func (u *PostgresURLStore) Init(ctx context.Context) error {
 	const op = "init store"
 
-	migrator := NewURLStoreMigrator(u.connString)
+	migrator := migration.NewURLStoreMigrator(u.connString)
 	if err := migrator.Up(); err != nil {
 		return errors.Wrapf(err, op)
 	}
