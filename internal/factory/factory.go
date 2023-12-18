@@ -19,27 +19,33 @@ const (
 
 func NewStorage(ctx context.Context, conf conf.Config, logger *zap.Logger) (domain.URLStore, func()) {
 	if conf.DataSourceName != "" {
-		logger.Info("Using sql storage")
-		store := pgsql.New(conf.DataSourceName)
-		err := store.Init()
-
-		if err != nil {
-			logger.Fatal("Failed to initialize store", zap.Error(err))
-		}
-
-		return store, func() { store.Close() }
+		logger.Info("Using sql store")
+		return newPGSQLStore(conf, logger)
 	}
 
 	if conf.FileStoragePath != "" {
-		logger.Info("Using file storage", zap.String("path", conf.FileStoragePath))
-		return newFileStorage(ctx, conf, logger)
+		logger.Info("Using file store", zap.String("path", conf.FileStoragePath))
+		return newFileStore(ctx, conf, logger)
 	}
 
-	logger.Info("Using in-memory storage")
-	return inmemory.New(), func() {}
+	logger.Info("Using in-memory store")
+	closer := func() {}
+	return inmemory.New(), closer
 }
 
-func newFileStorage(ctx context.Context, conf conf.Config, logger *zap.Logger) (domain.URLStore, func()) {
+func newPGSQLStore(conf conf.Config, logger *zap.Logger) (domain.URLStore, func()) {
+	store := pgsql.New(conf.DataSourceName)
+	err := store.Init()
+
+	if err != nil {
+		logger.Fatal("Failed to initialize store", zap.Error(err))
+	}
+
+	closer := func() { store.Close() }
+	return store, closer
+}
+
+func newFileStore(ctx context.Context, conf conf.Config, logger *zap.Logger) (domain.URLStore, func()) {
 	const ownerReadWritePermission os.FileMode = 0600
 	file, err := os.OpenFile(conf.FileStoragePath, os.O_RDWR|os.O_CREATE|os.O_APPEND, ownerReadWritePermission)
 	if err != nil {
@@ -48,10 +54,11 @@ func newFileStorage(ctx context.Context, conf conf.Config, logger *zap.Logger) (
 
 	store, err := filestore.New(ctx, file)
 	if err != nil {
-		logger.Fatal(err.Error(), zap.String(eventKey, "create storage"))
+		logger.Fatal(err.Error(), zap.String(eventKey, "create store"))
 	}
 
-	return store, func() { _ = file.Close() }
+	closer := func() { _ = file.Close() }
+	return store, closer
 }
 
 func NewLogger() (*zap.Logger, func()) {
@@ -61,7 +68,8 @@ func NewLogger() (*zap.Logger, func()) {
 		panic(err)
 	}
 
-	return logger, func() { _ = logger.Sync() }
+	closer := func() { _ = logger.Sync() }
+	return logger, closer
 }
 
 func newProductionLogger() (*zap.Logger, error) {
