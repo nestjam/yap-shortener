@@ -3,7 +3,6 @@ package pgsql
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	"github.com/jackc/pgerrcode"
 	"github.com/jackc/pgx/v5"
@@ -169,8 +168,9 @@ func (u *PostgresURLStore) AddURLs(ctx context.Context, pairs []domain.URLPair) 
 
 	defer func() { _ = tx.Rollback(ctx) }()
 
-	stmt, params := prepareInsert(pairs)
-	_, err = tx.Exec(ctx, stmt, params...)
+	columns := []string{"short_url", "original_url"}
+	rows := pgx.CopyFromRows(prepareRows(pairs))
+	_, err = conn.CopyFrom(ctx, pgx.Identifier{"url"}, columns, rows)
 
 	if err != nil {
 		return errors.Wrapf(err, op)
@@ -185,21 +185,15 @@ func (u *PostgresURLStore) AddURLs(ctx context.Context, pairs []domain.URLPair) 
 	return nil
 }
 
-func prepareInsert(pairs []domain.URLPair) (string, []any) {
-	const paramsInPair = 2
-	b := strings.Builder{}
-	b.WriteString("INSERT INTO url (short_url, original_url) VALUES ")
+func prepareRows(pairs []domain.URLPair) [][]any {
+	rows := make([][]any, len(pairs))
 
-	params := make([]any, len(pairs)*paramsInPair)
 	for i := 0; i < len(pairs); i++ {
-		first := i * paramsInPair
-		second := first + 1
-		params[first] = pairs[i].ShortURL
-		params[second] = pairs[i].OriginalURL
-		_, _ = b.WriteString(fmt.Sprintf("($%d, $%d),", first+1, second+1))
+		pair := pairs[i]
+		rows[i] = []any{pair.ShortURL, pair.OriginalURL}
 	}
 
-	return strings.TrimSuffix(b.String(), ","), params
+	return rows
 }
 
 func (u *PostgresURLStore) IsAvailable(ctx context.Context) bool {
