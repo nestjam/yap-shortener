@@ -22,7 +22,7 @@ func TestPostgresURLStore(t *testing.T) {
 		NewURLStore: func() (domain.URLStore, func()) {
 			t.Helper()
 			store := New(connString)
-			err := store.Init()
+			err := store.Init(context.Background())
 
 			require.NoError(t, err)
 

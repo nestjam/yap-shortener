@@ -26,7 +26,7 @@ func New(connString string) *PostgresURLStore {
 	}
 }
 
-func (u *PostgresURLStore) Init() error {
+func (u *PostgresURLStore) Init(ctx context.Context) error {
 	const op = "init store"
 
 	migrator := NewURLStoreMigrator(u.connString)
@@ -34,7 +34,6 @@ func (u *PostgresURLStore) Init() error {
 		return errors.Wrapf(err, op)
 	}
 
-	ctx := context.Background()
 	var err error
 	u.pool, err = initPool(ctx, u.connString)
 

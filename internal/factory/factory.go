@@ -20,7 +20,7 @@ const (
 func NewStorage(ctx context.Context, conf conf.Config, logger *zap.Logger) (domain.URLStore, func()) {
 	if conf.DataSourceName != "" {
 		logger.Info("Using sql store")
-		return newPGSQLStore(conf, logger)
+		return newPGSQLStore(ctx, conf, logger)
 	}
 
 	if conf.FileStoragePath != "" {
@@ -33,9 +33,9 @@ func NewStorage(ctx context.Context, conf conf.Config, logger *zap.Logger) (doma
 	return inmemory.New(), closer
 }
 
-func newPGSQLStore(conf conf.Config, logger *zap.Logger) (domain.URLStore, func()) {
+func newPGSQLStore(ctx context.Context, conf conf.Config, logger *zap.Logger) (domain.URLStore, func()) {
 	store := pgsql.New(conf.DataSourceName)
-	err := store.Init()
+	err := store.Init(ctx)
 
 	if err != nil {
 		logger.Fatal("Failed to initialize store", zap.Error(err))
