@@ -1,6 +1,7 @@
 package shortener
 
 import (
+	"math"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -43,6 +44,13 @@ func TestShorten(t *testing.T) {
 			want: "zyn",
 			args: args{
 				id: alphabetLen*alphabetLen + 55,
+			},
+		},
+		{
+			name: "max int",
+			want: "gf1psJ",
+			args: args{
+				id: math.MaxInt32,
 			},
 		},
 	}
