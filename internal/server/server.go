@@ -233,6 +233,11 @@ func (s *Server) shortenURLs(w http.ResponseWriter, r *http.Request) {
 
 	urlPairs := make([]domain.URLPair, len(req))
 	for i := 0; i < len(req); i++ {
+		if len(req[i].URL) == 0 {
+			badRequest(w, urlIsEmptyMessage)
+			return
+		}
+
 		urlPairs[i] = domain.URLPair{
 			ShortURL:    shortener.Shorten(uuid.New().ID()),
 			OriginalURL: req[i].URL,

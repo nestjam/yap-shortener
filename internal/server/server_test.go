@@ -468,6 +468,20 @@ func (u URLShortenerTest) Test(t *testing.T) {
 			assertBody(t, batchIsEmptyMessage, response)
 		})
 
+		t.Run("url is empty", func(t *testing.T) {
+			urlStore, cleanup := u.CreateDependencies()
+			t.Cleanup(cleanup)
+			sut := New(urlStore, baseURL, zap.NewNop())
+			originalURLs := newBatch([]string{""})
+			request := newBatchShortenAPIRequest(t, originalURLs)
+			response := httptest.NewRecorder()
+
+			sut.ServeHTTP(response, request)
+
+			assert.Equal(t, http.StatusBadRequest, response.Code)
+			assertBody(t, urlIsEmptyMessage, response)
+		})
+
 		t.Run("request json is invalid", func(t *testing.T) {
 			urlStore, cleanup := u.CreateDependencies()
 			t.Cleanup(cleanup)
