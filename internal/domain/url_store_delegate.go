@@ -6,7 +6,7 @@ import (
 )
 
 // A URLStoreDelegate allows to extend the behavior of the test double for negative scenarios
-// for URLStore consumers
+// for URLStore consumers.
 type URLStoreDelegate struct {
 	GetOriginalURLFunc func(ctx context.Context, shortURL string) (string, error)
 	AddURLFunc         func(ctx context.Context, shortURL, url string) error
