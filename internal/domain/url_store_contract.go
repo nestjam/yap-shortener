@@ -8,6 +8,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// A URLStoreContract captures the expected behavior of a URL store
+// in the form of tests that are run for a specific implementation of the store
 type URLStoreContract struct {
 	NewURLStore func() (URLStore, func())
 }
