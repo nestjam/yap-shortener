@@ -13,7 +13,8 @@ import (
 )
 
 const (
-	eventKey = "event"
+	eventKey            = "event"
+	shortenURLsMaxCount = 1000
 )
 
 func main() {
@@ -27,7 +28,7 @@ func main() {
 	storage, tearDownStorage := factory.NewStorage(context.Background(), config, logger)
 	defer tearDownStorage()
 
-	server := server.New(storage, config.BaseURL, logger)
+	server := server.New(storage, config.BaseURL, logger, server.WithShortenURLsMaxCount(shortenURLsMaxCount))
 	listenAndServe(config.ServerAddress, server, logger)
 }
 

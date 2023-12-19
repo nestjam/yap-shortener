@@ -541,6 +541,26 @@ func (u URLShortenerTest) Test(t *testing.T) {
 
 			assert.Equal(t, http.StatusInternalServerError, response.Code)
 		})
+
+		t.Run("request posts for too many urls", func(t *testing.T) {
+			urlStore, cleanup := u.CreateDependencies()
+			t.Cleanup(cleanup)
+			sut := New(urlStore, baseURL, zap.NewNop(), WithShortenURLsMaxCount(2))
+			urls := []string{
+				"foo.net",
+				"bar.net",
+				"buz.net",
+			}
+			originalURLs := newBatch(urls)
+
+			request := newBatchShortenAPIRequest(t, originalURLs)
+			response := httptest.NewRecorder()
+
+			sut.ServeHTTP(response, request)
+
+			assert.Equal(t, http.StatusForbidden, response.Code)
+			assertBody(t, "to many urls", response)
+		})
 	})
 }
 

@@ -33,9 +33,10 @@ const (
 )
 
 type Server struct {
-	storage domain.URLStore
-	router  chi.Router
-	baseURL string
+	storage             domain.URLStore
+	router              chi.Router
+	baseURL             string
+	shortenURLsMaxCount int
 }
 
 type ShortenRequest struct {
@@ -56,12 +57,18 @@ type ShortURL struct {
 	URL           string `json:"short_url"`
 }
 
-func New(storage domain.URLStore, baseURL string, logger *zap.Logger) *Server {
+type Option func(*Server)
+
+func New(storage domain.URLStore, baseURL string, logger *zap.Logger, options ...Option) *Server {
 	r := chi.NewRouter()
 	s := &Server{
-		storage,
-		r,
-		baseURL,
+		storage: storage,
+		router:  r,
+		baseURL: baseURL,
+	}
+
+	for _, opt := range options {
+		opt(s)
 	}
 
 	r.Use(middleware.ResponseLogger(logger))
@@ -74,7 +81,7 @@ func New(storage domain.URLStore, baseURL string, logger *zap.Logger) *Server {
 		r.Use(chimiddleware.AllowContentType(applicationJSON))
 		r.Use(middleware.RequestDecoder, middleware.ResponseEncoder)
 
-		r.Post("/api/shorten/batch", s.shortenBatchAPI)
+		r.Post("/api/shorten/batch", s.shortenURLs)
 		r.Post("/api/shorten", s.shortenAPI)
 	})
 
@@ -204,7 +211,7 @@ func (s *Server) ping(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(status)
 }
 
-func (s *Server) shortenBatchAPI(w http.ResponseWriter, r *http.Request) {
+func (s *Server) shortenURLs(w http.ResponseWriter, r *http.Request) {
 	var req []OriginalURL
 	decoder := json.NewDecoder(r.Body)
 	err := decoder.Decode(&req)
@@ -216,6 +223,11 @@ func (s *Server) shortenBatchAPI(w http.ResponseWriter, r *http.Request) {
 
 	if len(req) == 0 {
 		badRequest(w, batchIsEmptyMessage)
+		return
+	}
+
+	if isTooManyURLs(req, s.shortenURLsMaxCount) {
+		forbidden(w)
 		return
 	}
 
@@ -261,6 +273,14 @@ func (s *Server) shortenBatchAPI(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+func isTooManyURLs(req []OriginalURL, maxCount int) bool {
+	return maxCount > 0 && len(req) > maxCount
+}
+
+func forbidden(w http.ResponseWriter) {
+	http.Error(w, "to many urls", http.StatusForbidden)
+}
+
 func joinPath(base, elem string) string {
 	return fmt.Sprintf("%s/%s", base, elem)
 }
@@ -275,4 +295,10 @@ func notFound(w http.ResponseWriter, err string) {
 
 func internalError(w http.ResponseWriter, err string) {
 	http.Error(w, err, http.StatusInternalServerError)
+}
+
+func WithShortenURLsMaxCount(count int) Option {
+	return func(c *Server) {
+		c.shortenURLsMaxCount = count
+	}
 }
