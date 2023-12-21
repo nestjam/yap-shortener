@@ -20,28 +20,26 @@ type PostgresURLStore struct {
 	connString string
 }
 
-func New(connString string) *PostgresURLStore {
-	return &PostgresURLStore{
-		connString: connString,
-	}
-}
+func New(ctx context.Context, connString string) (*PostgresURLStore, error) {
+	const op = "new store"
 
-func (u *PostgresURLStore) Init(ctx context.Context) error {
-	const op = "init store"
-
-	migrator := migration.NewURLStoreMigrator(u.connString)
+	migrator := migration.NewURLStoreMigrator(connString)
 	if err := migrator.Up(); err != nil {
-		return errors.Wrapf(err, op)
+		return nil, errors.Wrapf(err, op)
 	}
 
 	var err error
-	u.pool, err = initPool(ctx, u.connString)
+	pool, err := initPool(ctx, connString)
 
 	if err != nil {
-		return errors.Wrapf(err, op)
+		return nil, errors.Wrapf(err, op)
 	}
 
-	return nil
+	store := &PostgresURLStore{
+		pool,
+		connString,
+	}
+	return store, nil
 }
 
 func (u *PostgresURLStore) Close() {

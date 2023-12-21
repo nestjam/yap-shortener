@@ -22,8 +22,7 @@ func TestPostgresURLStore(t *testing.T) {
 	domain.URLStoreContract{
 		NewURLStore: func() (domain.URLStore, func()) {
 			t.Helper()
-			store := New(connString)
-			err := store.Init(context.Background())
+			store, err := New(context.Background(), connString)
 
 			require.NoError(t, err)
 
