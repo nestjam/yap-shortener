@@ -25,7 +25,8 @@ func main() {
 	logger, tearDownLogger := factory.NewLogger()
 	defer tearDownLogger()
 
-	storage, tearDownStorage := factory.NewStorage(context.Background(), config, logger)
+	ctx := context.Background()
+	storage, tearDownStorage := factory.NewStorage(ctx, config, logger)
 	defer tearDownStorage()
 
 	server := server.New(storage, config.BaseURL, logger, server.WithShortenURLsMaxCount(shortenURLsMaxCount))
