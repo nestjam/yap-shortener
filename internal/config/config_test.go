@@ -73,6 +73,17 @@ func TestConfigFromArgs(t *testing.T) {
 				FileStoragePath: "tmp/urls.db",
 			},
 		},
+		{
+			name: "args contain database connection string",
+			args: []string{
+				"app.exe",
+				"-d",
+				"database_name",
+			},
+			want: Config{
+				DataSourceName: "database_name",
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -143,6 +154,17 @@ func TestConfigFromEnv(t *testing.T) {
 			env: &testEnvironment{
 				m: map[string]string{
 					"FILE_STORAGE_PATH": "tmp/file.db",
+				},
+			},
+		},
+		{
+			name: "env contains database connection string",
+			want: Config{
+				DataSourceName: "database_name",
+			},
+			env: &testEnvironment{
+				m: map[string]string{
+					"DATABASE_DSN": "database_name",
 				},
 			},
 		},

@@ -1,12 +1,15 @@
 package factory
 
 import (
+	"context"
 	"fmt"
 	"os"
 
 	conf "github.com/nestjam/yap-shortener/internal/config"
-	"github.com/nestjam/yap-shortener/internal/server"
-	"github.com/nestjam/yap-shortener/internal/store"
+	"github.com/nestjam/yap-shortener/internal/domain"
+	filestore "github.com/nestjam/yap-shortener/internal/persistance/file"
+	"github.com/nestjam/yap-shortener/internal/persistance/inmemory"
+	"github.com/nestjam/yap-shortener/internal/persistance/pgsql"
 	"go.uber.org/zap"
 )
 
@@ -14,29 +17,47 @@ const (
 	eventKey = "event"
 )
 
-func NewStorage(conf conf.Config, logger *zap.Logger) (server.URLStorage, func()) {
-	if conf.FileStoragePath == "" {
-		logger.Info("Using in-memory storage")
-		return store.NewInMemory(), func() {}
+func NewStorage(ctx context.Context, conf conf.Config, logger *zap.Logger) (domain.URLStore, func()) {
+	if conf.DataSourceName != "" {
+		logger.Info("Using sql store")
+		return newPGSQLStore(ctx, conf, logger)
 	}
 
-	logger.Info("Using file storage", zap.String("path", conf.FileStoragePath))
-	return newFileStorage(conf, logger)
+	if conf.FileStoragePath != "" {
+		logger.Info("Using file store", zap.String("path", conf.FileStoragePath))
+		return newFileStore(ctx, conf, logger)
+	}
+
+	logger.Info("Using in-memory store")
+	closer := func() {}
+	return inmemory.New(), closer
 }
 
-func newFileStorage(conf conf.Config, logger *zap.Logger) (server.URLStorage, func()) {
+func newPGSQLStore(ctx context.Context, conf conf.Config, logger *zap.Logger) (domain.URLStore, func()) {
+	store, err := pgsql.New(ctx, conf.DataSourceName)
+
+	if err != nil {
+		logger.Fatal("Failed to initialize store", zap.Error(err))
+	}
+
+	closer := func() { store.Close() }
+	return store, closer
+}
+
+func newFileStore(ctx context.Context, conf conf.Config, logger *zap.Logger) (domain.URLStore, func()) {
 	const ownerReadWritePermission os.FileMode = 0600
 	file, err := os.OpenFile(conf.FileStoragePath, os.O_RDWR|os.O_CREATE|os.O_APPEND, ownerReadWritePermission)
 	if err != nil {
 		logger.Fatal(err.Error(), zap.String(eventKey, "open file"))
 	}
 
-	store, err := store.NewFileStorage(file)
+	store, err := filestore.New(ctx, file)
 	if err != nil {
-		logger.Fatal(err.Error(), zap.String(eventKey, "create storage"))
+		logger.Fatal(err.Error(), zap.String(eventKey, "create store"))
 	}
 
-	return store, func() { _ = file.Close() }
+	closer := func() { _ = file.Close() }
+	return store, closer
 }
 
 func NewLogger() (*zap.Logger, func()) {
@@ -46,7 +67,8 @@ func NewLogger() (*zap.Logger, func()) {
 		panic(err)
 	}
 
-	return logger, func() { _ = logger.Sync() }
+	closer := func() { _ = logger.Sync() }
+	return logger, closer
 }
 
 func newProductionLogger() (*zap.Logger, error) {

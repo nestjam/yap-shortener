@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"net/http"
 	"os"
 
@@ -12,7 +13,8 @@ import (
 )
 
 const (
-	eventKey = "event"
+	eventKey            = "event"
+	shortenURLsMaxCount = 1000
 )
 
 func main() {
@@ -23,10 +25,11 @@ func main() {
 	logger, tearDownLogger := factory.NewLogger()
 	defer tearDownLogger()
 
-	storage, tearDownStorage := factory.NewStorage(config, logger)
+	ctx := context.Background()
+	storage, tearDownStorage := factory.NewStorage(ctx, config, logger)
 	defer tearDownStorage()
 
-	server := server.New(storage, config.BaseURL, logger)
+	server := server.New(storage, config.BaseURL, logger, server.WithShortenURLsMaxCount(shortenURLsMaxCount))
 	listenAndServe(config.ServerAddress, server, logger)
 }
 

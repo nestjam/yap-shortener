@@ -3,16 +3,20 @@ package server
 import (
 	"bytes"
 	"compress/gzip"
+	"context"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strconv"
 	"strings"
 	"testing"
 
-	"github.com/nestjam/yap-shortener/internal/model"
-	"github.com/nestjam/yap-shortener/internal/store"
+	"github.com/nestjam/yap-shortener/internal/domain"
+	"github.com/nestjam/yap-shortener/internal/persistance/inmemory"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
@@ -25,337 +29,338 @@ const (
 	contentEncodingHeader = "Content-Encoding"
 	gzipEncoding          = "gzip"
 	apiShortenPath        = "/api/shorten"
+	apiBatchShortenPath   = "/api/shorten/batch"
+	pingPath              = "ping"
 )
 
-type want struct {
-	location string
-	code     int
-	body     string
-}
-
-type testURLStore struct {
-	m            map[string]string
-	baseURL      string
-	lastShortURL string
-}
-
-func NewTestStore(baseURL string) *testURLStore {
-	return &testURLStore{
-		m:       map[string]string{},
-		baseURL: baseURL,
-	}
-}
-
-func (t *testURLStore) Get(shortURL string) (string, error) {
-	v, ok := t.m[shortURL]
-	if !ok {
-		return "", model.ErrNotFound
-	}
-	return v, nil
-}
-
-func (t *testURLStore) Add(shortURL, url string) {
-	t.m[shortURL] = url
-	t.lastShortURL = t.baseURL + "/" + shortURL
-}
-
-func TestRedirect(t *testing.T) {
-	t.Run("redirect to stored url", func(t *testing.T) {
-		want := want{
-			code:     http.StatusTemporaryRedirect,
-			location: testURL,
-			body:     "<a href=\"https://practicum.yandex.ru/\">Temporary Redirect</a>.",
-		}
-		testStore := NewTestStore(baseURL)
-		testStore.m["EwHXdJfB"] = testURL
-		sut := New(testStore, baseURL, zap.NewNop())
-		request := newGetRequest("EwHXdJfB")
-		response := httptest.NewRecorder()
-
-		sut.ServeHTTP(response, request)
-
-		assert.Equal(t, want.code, response.Code)
-		assertLocation(t, want.location, response)
-		assertErrorMessage(t, want.body, response)
-	})
-
-	t.Run("path is empty", func(t *testing.T) {
-		want := want{
-			code:     http.StatusMethodNotAllowed,
-			location: "",
-		}
-		request := newGetRequest("")
-		response := httptest.NewRecorder()
-		testStore := NewTestStore(baseURL)
-		sut := New(testStore, baseURL, zap.NewNop())
-
-		sut.ServeHTTP(response, request)
-
-		assert.Equal(t, want.code, response.Code)
-		assertLocation(t, want.location, response)
-		assertBody(t, want.body, response)
-	})
-
-	t.Run("url not found", func(t *testing.T) {
-		want := want{
-			code: http.StatusNotFound,
-			body: "not found",
-		}
-		testStore := NewTestStore(baseURL)
-		sut := New(testStore, baseURL, zap.NewNop())
-		request := newGetRequest("EwHXdJfB")
-		response := httptest.NewRecorder()
-
-		sut.ServeHTTP(response, request)
-
-		assert.Equal(t, want.code, response.Code)
-		assertLocation(t, want.location, response)
-		assertErrorMessage(t, want.body, response)
-	})
-
-	t.Run("url not found (in-memory store)", func(t *testing.T) {
-		want := want{
-			code: http.StatusNotFound,
-			body: "not found",
-		}
-		testStore := store.NewInMemory()
-		sut := New(testStore, baseURL, zap.NewNop())
-		request := newGetRequest("EwHXdJfB")
-		response := httptest.NewRecorder()
-
-		sut.ServeHTTP(response, request)
-
-		assert.Equal(t, want.code, response.Code)
-		assertLocation(t, want.location, response)
-		assertErrorMessage(t, want.body, response)
+func TestURLShortener(t *testing.T) {
+	t.Run("with in memory store", func(t *testing.T) {
+		URLShortenerTest{
+			CreateDependencies: func() (domain.URLStore, Cleanup) {
+				return inmemory.New(), func() {
+				}
+			},
+		}.Test(t)
 	})
 }
 
-func TestShorten(t *testing.T) {
-	t.Run("shorten url", func(t *testing.T) {
-		want := want{
-			code: http.StatusCreated,
-		}
-		testStore := NewTestStore(baseURL)
-		sut := New(testStore, baseURL, zap.NewNop())
-		request := newShortenRequest(testURL)
-		response := httptest.NewRecorder()
+type Cleanup func()
 
-		sut.ServeHTTP(response, request)
-
-		assert.Equal(t, want.code, response.Code)
-		assertBody(t, testStore.lastShortURL, response)
-	})
-
-	t.Run("content type is not text/plain", func(t *testing.T) {
-		want := want{
-			code: http.StatusUnsupportedMediaType,
-		}
-		testStore := NewTestStore(baseURL)
-		sut := New(testStore, baseURL, zap.NewNop())
-		request := newShortenRequest(testURL)
-		request.Header.Set(contentTypeHeader, "application/xml")
-		response := httptest.NewRecorder()
-
-		sut.ServeHTTP(response, request)
-
-		assert.Equal(t, want.code, response.Code)
-		assertBody(t, want.body, response)
-	})
-
-	t.Run("shorten same url twice", func(t *testing.T) {
-		want := want{
-			code: http.StatusCreated,
-		}
-		testStore := NewTestStore(baseURL)
-		sut := New(testStore, baseURL, zap.NewNop())
-		request := newShortenRequest(testURL)
-		response := httptest.NewRecorder()
-
-		//1
-		sut.ServeHTTP(response, request)
-
-		assert.Equal(t, want.code, response.Code)
-		assertBody(t, testStore.lastShortURL, response)
-
-		request = newShortenRequest(testURL)
-		response = httptest.NewRecorder()
-
-		//2
-		sut.ServeHTTP(response, request)
-
-		assert.Equal(t, want.code, response.Code)
-		assertBody(t, testStore.lastShortURL, response)
-	})
-
-	t.Run("url is empty", func(t *testing.T) {
-		want := want{
-			code: http.StatusBadRequest,
-			body: urlIsEmptyMessage,
-		}
-		testStore := NewTestStore(baseURL)
-		sut := New(testStore, baseURL, zap.NewNop())
-		request := newShortenRequest("")
-		response := httptest.NewRecorder()
-
-		sut.ServeHTTP(response, request)
-
-		assert.Equal(t, want.code, response.Code)
-		assertErrorMessage(t, want.body, response)
-	})
-
-	t.Run("client accepts br and gzip encodings", func(t *testing.T) {
-		testStore := NewTestStore(baseURL)
-		sut := New(testStore, baseURL, zap.NewNop())
-		request := newShortenRequest(testURL)
-		request.Header.Set(acceptEncodingHeader, "br, "+gzipEncoding)
-		response := httptest.NewRecorder()
-
-		sut.ServeHTTP(response, request)
-
-		assert.Equal(t, http.StatusCreated, response.Code)
-		assertContentEncoding(t, gzipEncoding, response)
-		got := getDecoded(t, response.Body)
-		assert.Equal(t, testStore.lastShortURL, got)
-	})
-
-	t.Run("client sends content type x-gzip", func(t *testing.T) {
-		testStore := NewTestStore(baseURL)
-		sut := New(testStore, baseURL, zap.NewNop())
-		request := newEncodedShortenRequest(t, testURL)
-		response := httptest.NewRecorder()
-
-		sut.ServeHTTP(response, request)
-
-		assert.Equal(t, http.StatusCreated, response.Code)
-		assertContentEncoding(t, "", response)
-		assertBody(t, testStore.lastShortURL, response)
-	})
+type URLShortenerTest struct {
+	CreateDependencies func() (domain.URLStore, Cleanup)
 }
 
-func TestShortenAPI(t *testing.T) {
-	t.Run("shorten url", func(t *testing.T) {
-		testStore := NewTestStore(baseURL)
-		sut := New(testStore, baseURL, zap.NewNop())
-		request := newShortenAPIRequest(t, testURL)
-		response := httptest.NewRecorder()
+func (u URLShortenerTest) Test(t *testing.T) {
+	t.Run("getting original url", func(t *testing.T) {
+		t.Run("redirect to original url", func(t *testing.T) {
+			const (
+				shortURL = "EwHXdJfB"
+				body     = "<a href=\"https://practicum.yandex.ru/\">Temporary Redirect</a>."
+			)
+			urlStore, cleanup := u.CreateDependencies()
+			t.Cleanup(cleanup)
+			err := urlStore.AddURL(context.Background(), shortURL, testURL)
+			require.NoError(t, err)
+			sut := New(urlStore, baseURL, zap.NewNop())
+			request := newGetRequest(shortURL)
+			response := httptest.NewRecorder()
 
-		sut.ServeHTTP(response, request)
+			sut.ServeHTTP(response, request)
 
-		body := response.Body.String()
-		got := getShortURL(t, response.Body)
-		assert.Equal(t, http.StatusCreated, response.Code)
-		assert.Equal(t, testStore.lastShortURL, got)
-		assertContentType(t, applicationJSON, response)
-		assertContentLenght(t, len(body), response)
+			assert.Equal(t, http.StatusTemporaryRedirect, response.Code)
+			assertLocation(t, testURL, response)
+			assertBody(t, body, response)
+		})
+
+		t.Run("path is empty", func(t *testing.T) {
+			request := newGetRequest("")
+			response := httptest.NewRecorder()
+			urlStore, cleanup := u.CreateDependencies()
+			t.Cleanup(cleanup)
+			sut := New(urlStore, baseURL, zap.NewNop())
+
+			sut.ServeHTTP(response, request)
+
+			assert.Equal(t, http.StatusMethodNotAllowed, response.Code)
+			assertLocation(t, "", response)
+			assertBody(t, "", response)
+		})
+
+		t.Run("url not found", func(t *testing.T) {
+			urlStore, cleanup := u.CreateDependencies()
+			t.Cleanup(cleanup)
+			sut := New(urlStore, baseURL, zap.NewNop())
+			request := newGetRequest("EwHXdJfB")
+			response := httptest.NewRecorder()
+
+			sut.ServeHTTP(response, request)
+
+			assert.Equal(t, http.StatusNotFound, response.Code)
+			assertLocation(t, "", response)
+			assertBody(t, "not found", response)
+		})
 	})
 
-	t.Run("content type is not application/json", func(t *testing.T) {
-		testStore := NewTestStore(baseURL)
-		sut := New(testStore, baseURL, zap.NewNop())
-		request := newShortenAPIRequest(t, testURL)
-		request.Header.Set(contentTypeHeader, textPlain)
-		response := httptest.NewRecorder()
+	t.Run("shortening url", func(t *testing.T) {
+		t.Run("shorten url", func(t *testing.T) {
+			urlStore, cleanup := u.CreateDependencies()
+			t.Cleanup(cleanup)
+			sut := New(urlStore, baseURL, zap.NewNop())
+			request := newShortenRequest(testURL)
+			response := httptest.NewRecorder()
 
-		sut.ServeHTTP(response, request)
+			sut.ServeHTTP(response, request)
 
-		assert.Equal(t, http.StatusUnsupportedMediaType, response.Code)
+			assert.Equal(t, http.StatusCreated, response.Code)
+			assertRedirectURL(t, response.Body.String(), urlStore)
+		})
+
+		t.Run("content type is not text-plain", func(t *testing.T) {
+			urlStore, cleanup := u.CreateDependencies()
+			t.Cleanup(cleanup)
+			sut := New(urlStore, baseURL, zap.NewNop())
+			request := newShortenRequest(testURL)
+			request.Header.Set(contentTypeHeader, "application/xml")
+			response := httptest.NewRecorder()
+
+			sut.ServeHTTP(response, request)
+
+			assert.Equal(t, http.StatusUnsupportedMediaType, response.Code)
+			assertBody(t, "", response)
+		})
+
+		t.Run("shorten same url twice", func(t *testing.T) {
+			urlStore, cleanup := u.CreateDependencies()
+			t.Cleanup(cleanup)
+			sut := New(urlStore, baseURL, zap.NewNop())
+
+			//1
+			request := newShortenRequest(testURL)
+			response := httptest.NewRecorder()
+
+			sut.ServeHTTP(response, request)
+
+			assert.Equal(t, http.StatusCreated, response.Code)
+			assertRedirectURL(t, response.Body.String(), urlStore)
+
+			//2
+			request = newShortenRequest(testURL)
+			response = httptest.NewRecorder()
+
+			sut.ServeHTTP(response, request)
+
+			assert.Equal(t, http.StatusConflict, response.Code)
+			assertRedirectURL(t, response.Body.String(), urlStore)
+		})
+
+		t.Run("url is empty", func(t *testing.T) {
+			urlStore, cleanup := u.CreateDependencies()
+			t.Cleanup(cleanup)
+			sut := New(urlStore, baseURL, zap.NewNop())
+			request := newShortenRequest("")
+			response := httptest.NewRecorder()
+
+			sut.ServeHTTP(response, request)
+
+			assert.Equal(t, http.StatusBadRequest, response.Code)
+			assertBody(t, urlIsEmptyMessage, response)
+		})
+
+		t.Run("client accepts br and gzip encodings", func(t *testing.T) {
+			urlStore, cleanup := u.CreateDependencies()
+			t.Cleanup(cleanup)
+			sut := New(urlStore, baseURL, zap.NewNop())
+			request := newShortenRequest(testURL)
+			request.Header.Set(acceptEncodingHeader, "br, "+gzipEncoding)
+			response := httptest.NewRecorder()
+
+			sut.ServeHTTP(response, request)
+
+			assert.Equal(t, http.StatusCreated, response.Code)
+			assertContentEncoding(t, gzipEncoding, response)
+			got := getDecoded(t, response.Body)
+			assertRedirectURL(t, got, urlStore)
+		})
+
+		t.Run("client sends content type x-gzip", func(t *testing.T) {
+			urlStore, cleanup := u.CreateDependencies()
+			t.Cleanup(cleanup)
+			sut := New(urlStore, baseURL, zap.NewNop())
+			request := newEncodedShortenRequest(t, testURL)
+			response := httptest.NewRecorder()
+
+			sut.ServeHTTP(response, request)
+
+			assert.Equal(t, http.StatusCreated, response.Code)
+			assertContentEncoding(t, "", response)
+			assertRedirectURL(t, response.Body.String(), urlStore)
+		})
+
+		t.Run("failed to store url", func(t *testing.T) {
+			urlStore, cleanup := u.CreateDependencies()
+			t.Cleanup(cleanup)
+			failingURLStore := domain.NewURLStoreDelegate(urlStore)
+			failingURLStore.AddURLFunc = func(ctx context.Context, shortURL, url string) error {
+				return errors.New("failed to add url")
+			}
+			sut := New(failingURLStore, baseURL, zap.NewNop())
+			request := newShortenRequest(testURL)
+			response := httptest.NewRecorder()
+
+			sut.ServeHTTP(response, request)
+
+			assert.Equal(t, http.StatusInternalServerError, response.Code)
+		})
 	})
 
-	t.Run("shorten same url twice", func(t *testing.T) {
-		testStore := NewTestStore(baseURL)
-		sut := New(testStore, baseURL, zap.NewNop())
-		request := newShortenAPIRequest(t, testURL)
-		response := httptest.NewRecorder()
+	t.Run("shortening url (api)", func(t *testing.T) {
+		t.Run("shorten url", func(t *testing.T) {
+			urlStore, cleanup := u.CreateDependencies()
+			t.Cleanup(cleanup)
+			sut := New(urlStore, baseURL, zap.NewNop())
+			request := newShortenAPIRequest(t, testURL)
+			response := httptest.NewRecorder()
 
-		//1
-		sut.ServeHTTP(response, request)
+			sut.ServeHTTP(response, request)
 
-		got := getShortURL(t, response.Body)
-		assert.Equal(t, http.StatusCreated, response.Code)
-		assert.Equal(t, testStore.lastShortURL, got)
+			body := response.Body.String()
+			got := getShortURL(t, response.Body)
+			assert.Equal(t, http.StatusCreated, response.Code)
+			assertRedirectURL(t, got, urlStore)
+			assertContentType(t, applicationJSON, response)
+			assertContentLenght(t, len(body), response)
+		})
 
-		request = newShortenAPIRequest(t, testURL)
-		response = httptest.NewRecorder()
+		t.Run("content type is not application-json", func(t *testing.T) {
+			urlStore, cleanup := u.CreateDependencies()
+			t.Cleanup(cleanup)
+			sut := New(urlStore, baseURL, zap.NewNop())
+			request := newShortenAPIRequest(t, testURL)
+			request.Header.Set(contentTypeHeader, textPlain)
+			response := httptest.NewRecorder()
 
-		//2
-		sut.ServeHTTP(response, request)
+			sut.ServeHTTP(response, request)
 
-		got = getShortURL(t, response.Body)
-		assert.Equal(t, http.StatusCreated, response.Code)
-		assert.Equal(t, testStore.lastShortURL, got)
+			assert.Equal(t, http.StatusUnsupportedMediaType, response.Code)
+		})
+
+		t.Run("shorten same url twice", func(t *testing.T) {
+			urlStore, cleanup := u.CreateDependencies()
+			t.Cleanup(cleanup)
+			sut := New(urlStore, baseURL, zap.NewNop())
+
+			//1
+			request := newShortenAPIRequest(t, testURL)
+			response := httptest.NewRecorder()
+
+			sut.ServeHTTP(response, request)
+
+			got := getShortURL(t, response.Body)
+			assert.Equal(t, http.StatusCreated, response.Code)
+			assertRedirectURL(t, got, urlStore)
+
+			//2
+			request = newShortenAPIRequest(t, testURL)
+			response = httptest.NewRecorder()
+
+			sut.ServeHTTP(response, request)
+
+			assert.Equal(t, http.StatusConflict, response.Code)
+			got = getShortURL(t, response.Body)
+			assertRedirectURL(t, got, urlStore)
+		})
+
+		t.Run("url is empty", func(t *testing.T) {
+			urlStore, cleanup := u.CreateDependencies()
+			t.Cleanup(cleanup)
+			sut := New(urlStore, baseURL, zap.NewNop())
+			request := newShortenAPIRequest(t, "")
+			response := httptest.NewRecorder()
+
+			sut.ServeHTTP(response, request)
+
+			assert.Equal(t, http.StatusBadRequest, response.Code)
+			assertBody(t, urlIsEmptyMessage, response)
+		})
+
+		t.Run("request json is invalid", func(t *testing.T) {
+			urlStore, cleanup := u.CreateDependencies()
+			t.Cleanup(cleanup)
+			sut := New(urlStore, baseURL, zap.NewNop())
+			request := httptest.NewRequest(http.MethodPost, "/api/shorten", strings.NewReader("{{]}"))
+			request.Header.Set(contentTypeHeader, applicationJSON)
+			response := httptest.NewRecorder()
+
+			sut.ServeHTTP(response, request)
+
+			assert.Equal(t, http.StatusBadRequest, response.Code)
+			assertBody(t, "failed to parse request", response)
+		})
+
+		t.Run("client accepts br and gzip encodings", func(t *testing.T) {
+			urlStore, cleanup := u.CreateDependencies()
+			t.Cleanup(cleanup)
+			sut := New(urlStore, baseURL, zap.NewNop())
+			request := newShortenAPIRequest(t, testURL)
+			request.Header.Set(acceptEncodingHeader, "br, "+gzipEncoding)
+			response := httptest.NewRecorder()
+
+			sut.ServeHTTP(response, request)
+
+			assert.Equal(t, http.StatusCreated, response.Code)
+			assertContentEncoding(t, gzipEncoding, response)
+			got := getShortURL(t, decodeResponse(t, response))
+			assertRedirectURL(t, got, urlStore)
+		})
+
+		t.Run("client does not accept encoding", func(t *testing.T) {
+			urlStore, cleanup := u.CreateDependencies()
+			t.Cleanup(cleanup)
+			sut := New(urlStore, baseURL, zap.NewNop())
+			request := newShortenAPIRequest(t, testURL)
+			response := httptest.NewRecorder()
+
+			sut.ServeHTTP(response, request)
+
+			assertContentEncoding(t, "", response)
+		})
+
+		t.Run("client sends encoded content", func(t *testing.T) {
+			urlStore, cleanup := u.CreateDependencies()
+			t.Cleanup(cleanup)
+			sut := New(urlStore, baseURL, zap.NewNop())
+			request := newEncodedShortenAPIRequest(t, testURL)
+			response := httptest.NewRecorder()
+
+			sut.ServeHTTP(response, request)
+
+			assert.Equal(t, http.StatusCreated, response.Code)
+			got := getShortURL(t, response.Body)
+			assertRedirectURL(t, got, urlStore)
+		})
+
+		t.Run("failed to store url", func(t *testing.T) {
+			urlStore, cleanup := u.CreateDependencies()
+			t.Cleanup(cleanup)
+			failingURLStore := domain.NewURLStoreDelegate(urlStore)
+			failingURLStore.AddURLFunc = func(ctx context.Context, shortURL, url string) error {
+				return errors.New("failed to add url")
+			}
+			sut := New(failingURLStore, baseURL, zap.NewNop())
+			request := newEncodedShortenAPIRequest(t, testURL)
+			response := httptest.NewRecorder()
+
+			sut.ServeHTTP(response, request)
+
+			assert.Equal(t, http.StatusInternalServerError, response.Code)
+		})
 	})
 
-	t.Run("url is empty", func(t *testing.T) {
-		testStore := NewTestStore(baseURL)
-		sut := New(testStore, baseURL, zap.NewNop())
-		request := newShortenAPIRequest(t, "")
-		response := httptest.NewRecorder()
-
-		sut.ServeHTTP(response, request)
-
-		assert.Equal(t, http.StatusBadRequest, response.Code)
-		assertErrorMessage(t, urlIsEmptyMessage, response)
-	})
-
-	t.Run("request json is invalid", func(t *testing.T) {
-		testStore := NewTestStore(baseURL)
-		sut := New(testStore, baseURL, zap.NewNop())
-		request := httptest.NewRequest(http.MethodPost, "/api/shorten", strings.NewReader("{{]}"))
-		request.Header.Set(contentTypeHeader, applicationJSON)
-		response := httptest.NewRecorder()
-
-		sut.ServeHTTP(response, request)
-
-		assert.Equal(t, http.StatusBadRequest, response.Code)
-		assertErrorMessage(t, "failed to parse request", response)
-	})
-
-	t.Run("client accepts br and gzip encodings", func(t *testing.T) {
-		testStore := NewTestStore(baseURL)
-		sut := New(testStore, baseURL, zap.NewNop())
-		request := newShortenAPIRequest(t, testURL)
-		request.Header.Set(acceptEncodingHeader, "br, "+gzipEncoding)
-		response := httptest.NewRecorder()
-
-		sut.ServeHTTP(response, request)
-
-		assert.Equal(t, http.StatusCreated, response.Code)
-		assertContentEncoding(t, gzipEncoding, response)
-		got := getShortURL(t, decodeResponse(t, response))
-		assert.Equal(t, testStore.lastShortURL, got)
-	})
-
-	t.Run("client does not accept encoding", func(t *testing.T) {
-		testStore := NewTestStore(baseURL)
-		sut := New(testStore, baseURL, zap.NewNop())
-		request := newShortenAPIRequest(t, testURL)
-		response := httptest.NewRecorder()
-
-		sut.ServeHTTP(response, request)
-
-		assertContentEncoding(t, "", response)
-	})
-
-	t.Run("client sends encoded content", func(t *testing.T) {
-		testStore := NewTestStore(baseURL)
-		sut := New(testStore, baseURL, zap.NewNop())
-		request := newEncodedShortenAPIRequest(t, testURL)
-		response := httptest.NewRecorder()
-
-		sut.ServeHTTP(response, request)
-
-		assert.Equal(t, http.StatusCreated, response.Code)
-		got := getShortURL(t, response.Body)
-		assert.Equal(t, testStore.lastShortURL, got)
-	})
-}
-
-func TestServeHTTP(t *testing.T) {
 	t.Run("put method not allowed", func(t *testing.T) {
 		want := http.StatusMethodNotAllowed
-		testStore := NewTestStore(baseURL)
-		sut := New(testStore, baseURL, zap.NewNop())
+		urlStore, cleanup := u.CreateDependencies()
+		t.Cleanup(cleanup)
+		sut := New(urlStore, baseURL, zap.NewNop())
 		request := newPutRequest(testURL)
 		response := httptest.NewRecorder()
 
@@ -363,6 +368,259 @@ func TestServeHTTP(t *testing.T) {
 
 		assert.Equal(t, want, response.Code)
 	})
+
+	t.Run("pinging service", func(t *testing.T) {
+		t.Run("service is avaiable", func(t *testing.T) {
+			urlStore, cleanup := u.CreateDependencies()
+			t.Cleanup(cleanup)
+			sut := New(urlStore, baseURL, zap.NewNop())
+			request := newPingRequest()
+			response := httptest.NewRecorder()
+
+			sut.ServeHTTP(response, request)
+
+			assert.Equal(t, http.StatusOK, response.Code)
+		})
+
+		t.Run("service is not avaiable", func(t *testing.T) {
+			urlStore, cleanup := u.CreateDependencies()
+			t.Cleanup(cleanup)
+			unavailableURLStore := domain.NewURLStoreDelegate(urlStore)
+			unavailableURLStore.IsAvailableFunc = func(ctx context.Context) bool {
+				return false
+			}
+			sut := New(unavailableURLStore, baseURL, zap.NewNop())
+			request := newPingRequest()
+			response := httptest.NewRecorder()
+
+			sut.ServeHTTP(response, request)
+
+			assert.Equal(t, http.StatusInternalServerError, response.Code)
+		})
+	})
+
+	t.Run("batch shortening urls (api)", func(t *testing.T) {
+		t.Run("shorten urls", func(t *testing.T) {
+			urlStore, cleanup := u.CreateDependencies()
+			t.Cleanup(cleanup)
+			sut := New(urlStore, baseURL, zap.NewNop())
+			originalURLs := newBatch([]string{"https://practicum.yandex.ru/", "https://google.com/"})
+			request := newBatchShortenAPIRequest(t, originalURLs)
+			response := httptest.NewRecorder()
+
+			sut.ServeHTTP(response, request)
+
+			assert.Equal(t, http.StatusCreated, response.Code)
+			assertContentType(t, applicationJSON, response)
+			assertShortURLs(t, originalURLs, response.Body, urlStore)
+		})
+
+		t.Run("content type is not application-json", func(t *testing.T) {
+			urlStore, cleanup := u.CreateDependencies()
+			t.Cleanup(cleanup)
+			sut := New(urlStore, baseURL, zap.NewNop())
+			originalURLs := newBatch([]string{testURL})
+			request := newBatchShortenAPIRequest(t, originalURLs)
+			request.Header.Set(contentTypeHeader, textPlain)
+			response := httptest.NewRecorder()
+
+			sut.ServeHTTP(response, request)
+
+			assert.Equal(t, http.StatusUnsupportedMediaType, response.Code)
+		})
+
+		t.Run("shorten same url twice", func(t *testing.T) {
+			urlStore, cleanup := u.CreateDependencies()
+			t.Cleanup(cleanup)
+			sut := New(urlStore, baseURL, zap.NewNop())
+			originalURLs := newBatch([]string{testURL})
+
+			//1
+			request := newBatchShortenAPIRequest(t, originalURLs)
+			response := httptest.NewRecorder()
+
+			sut.ServeHTTP(response, request)
+
+			assert.Equal(t, http.StatusCreated, response.Code)
+			assertShortURLs(t, originalURLs, response.Body, urlStore)
+
+			//2
+			request = newBatchShortenAPIRequest(t, originalURLs)
+			response = httptest.NewRecorder()
+
+			sut.ServeHTTP(response, request)
+
+			assert.Equal(t, http.StatusCreated, response.Code)
+			assertShortURLs(t, originalURLs, response.Body, urlStore)
+		})
+
+		t.Run("batch is empty", func(t *testing.T) {
+			urlStore, cleanup := u.CreateDependencies()
+			t.Cleanup(cleanup)
+			sut := New(urlStore, baseURL, zap.NewNop())
+			originalURLs := newBatch([]string{})
+			request := newBatchShortenAPIRequest(t, originalURLs)
+			response := httptest.NewRecorder()
+
+			sut.ServeHTTP(response, request)
+
+			assert.Equal(t, http.StatusBadRequest, response.Code)
+			assertBody(t, batchIsEmptyMessage, response)
+		})
+
+		t.Run("url is empty", func(t *testing.T) {
+			urlStore, cleanup := u.CreateDependencies()
+			t.Cleanup(cleanup)
+			sut := New(urlStore, baseURL, zap.NewNop())
+			originalURLs := newBatch([]string{""})
+			request := newBatchShortenAPIRequest(t, originalURLs)
+			response := httptest.NewRecorder()
+
+			sut.ServeHTTP(response, request)
+
+			assert.Equal(t, http.StatusBadRequest, response.Code)
+			assertBody(t, urlIsEmptyMessage, response)
+		})
+
+		t.Run("request json is invalid", func(t *testing.T) {
+			urlStore, cleanup := u.CreateDependencies()
+			t.Cleanup(cleanup)
+			sut := New(urlStore, baseURL, zap.NewNop())
+			request := httptest.NewRequest(http.MethodPost, "/api/shorten/batch", strings.NewReader("{{]}"))
+			request.Header.Set(contentTypeHeader, applicationJSON)
+			response := httptest.NewRecorder()
+
+			sut.ServeHTTP(response, request)
+
+			assert.Equal(t, http.StatusBadRequest, response.Code)
+			assertBody(t, "failed to parse request", response)
+		})
+
+		t.Run("client accepts br and gzip encodings", func(t *testing.T) {
+			urlStore, cleanup := u.CreateDependencies()
+			t.Cleanup(cleanup)
+			sut := New(urlStore, baseURL, zap.NewNop())
+			originalURLs := newBatch([]string{testURL})
+			request := newBatchShortenAPIRequest(t, originalURLs)
+			request.Header.Set(acceptEncodingHeader, "br, "+gzipEncoding)
+			response := httptest.NewRecorder()
+
+			sut.ServeHTTP(response, request)
+
+			assert.Equal(t, http.StatusCreated, response.Code)
+			assertContentEncoding(t, gzipEncoding, response)
+			assertShortURLs(t, originalURLs, decodeResponse(t, response), urlStore)
+		})
+
+		t.Run("client does not accept encoding", func(t *testing.T) {
+			urlStore, cleanup := u.CreateDependencies()
+			t.Cleanup(cleanup)
+			sut := New(urlStore, baseURL, zap.NewNop())
+			originalURLs := newBatch([]string{testURL})
+			request := newBatchShortenAPIRequest(t, originalURLs)
+			response := httptest.NewRecorder()
+
+			sut.ServeHTTP(response, request)
+
+			assertContentEncoding(t, "", response)
+		})
+
+		t.Run("client sends encoded content", func(t *testing.T) {
+			urlStore, cleanup := u.CreateDependencies()
+			t.Cleanup(cleanup)
+			sut := New(urlStore, baseURL, zap.NewNop())
+			originalURLs := newBatch([]string{testURL})
+			request := newBatchShortenAPIRequest(t, originalURLs)
+			response := httptest.NewRecorder()
+
+			sut.ServeHTTP(response, request)
+
+			assert.Equal(t, http.StatusCreated, response.Code)
+			assertShortURLs(t, originalURLs, response.Body, urlStore)
+		})
+
+		t.Run("failed to store url", func(t *testing.T) {
+			urlStore, cleanup := u.CreateDependencies()
+			t.Cleanup(cleanup)
+			failingURLStore := domain.NewURLStoreDelegate(urlStore)
+			failingURLStore.AddURLsFunc = func(ctx context.Context, pairs []domain.URLPair) error {
+				return errors.New("failed to add url")
+			}
+			sut := New(failingURLStore, baseURL, zap.NewNop())
+			originalURLs := newBatch([]string{testURL})
+			request := newBatchShortenAPIRequest(t, originalURLs)
+			response := httptest.NewRecorder()
+
+			sut.ServeHTTP(response, request)
+
+			assert.Equal(t, http.StatusInternalServerError, response.Code)
+		})
+
+		t.Run("request posts for too many urls", func(t *testing.T) {
+			urlStore, cleanup := u.CreateDependencies()
+			t.Cleanup(cleanup)
+			sut := New(urlStore, baseURL, zap.NewNop(), WithShortenURLsMaxCount(2))
+			urls := []string{
+				"foo.net",
+				"bar.net",
+				"buz.net",
+			}
+			originalURLs := newBatch(urls)
+
+			request := newBatchShortenAPIRequest(t, originalURLs)
+			response := httptest.NewRecorder()
+
+			sut.ServeHTTP(response, request)
+
+			assert.Equal(t, http.StatusForbidden, response.Code)
+			assertBody(t, "to many urls", response)
+		})
+	})
+}
+
+func assertShortURLs(t *testing.T, req []OriginalURL, r io.Reader, store domain.URLStore) {
+	t.Helper()
+	var resp []ShortURL
+	err := json.NewDecoder(r).Decode(&resp)
+
+	require.NoError(t, err, "unable to parse response from server: %v", err)
+
+	assert.Equal(t, len(req), len(resp))
+	for i := 0; i < len(req); i++ {
+		urlPath, err := getURLPath(resp[i].URL)
+
+		require.NoError(t, err)
+
+		got, err := store.GetOriginalURL(context.Background(), strings.Trim(urlPath, "/"))
+
+		require.NoError(t, err)
+
+		assert.Equal(t, got, req[i].URL)
+	}
+}
+
+func newBatch(urls []string) []OriginalURL {
+	batch := make([]OriginalURL, len(urls))
+	for i := 0; i < len(urls); i++ {
+		batch[i] = OriginalURL{URL: urls[i], CorrelationID: strconv.Itoa(i)}
+	}
+	return batch
+}
+
+func newBatchShortenAPIRequest(t *testing.T, r []OriginalURL) *http.Request {
+	t.Helper()
+	body, err := json.Marshal(&r)
+
+	require.NoError(t, err, "unable to marshal %q, %v", r, err)
+
+	request := httptest.NewRequest(http.MethodPost, apiBatchShortenPath, strings.NewReader(string(body)))
+	request.Header.Set(contentTypeHeader, applicationJSON)
+	return request
+}
+
+func newPingRequest() *http.Request {
+	r := httptest.NewRequest(http.MethodGet, "/"+pingPath, nil)
+	return r
 }
 
 func newGetRequest(shortURL string) *http.Request {
@@ -442,11 +700,6 @@ func assertLocation(t *testing.T, want string, r *httptest.ResponseRecorder) {
 
 func assertBody(t *testing.T, want string, r *httptest.ResponseRecorder) {
 	t.Helper()
-	assert.Equal(t, want, r.Body.String())
-}
-
-func assertErrorMessage(t *testing.T, want string, r *httptest.ResponseRecorder) {
-	t.Helper()
 	assert.Equal(t, want, strings.TrimSpace(r.Body.String()))
 }
 
@@ -495,4 +748,27 @@ func getDecoded(t *testing.T, r io.Reader) string {
 func decodeResponse(t *testing.T, r *httptest.ResponseRecorder) *strings.Reader {
 	t.Helper()
 	return strings.NewReader(getDecoded(t, r.Body))
+}
+
+func assertRedirectURL(t *testing.T, url string, urlStore domain.URLStore) {
+	t.Helper()
+	urlPath, err := getURLPath(url)
+
+	require.NoError(t, err)
+
+	got, err := urlStore.GetOriginalURL(context.Background(), strings.Trim(urlPath, "/"))
+
+	require.NoError(t, err)
+
+	assert.Equal(t, testURL, got)
+}
+
+func getURLPath(rawURL string) (string, error) {
+	url, err := url.Parse(rawURL)
+
+	if err != nil {
+		return "", fmt.Errorf("get url path: %w", err)
+	}
+
+	return url.Path, nil
 }
