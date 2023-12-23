@@ -57,9 +57,14 @@ func (u URLShortenerTest) Test(t *testing.T) {
 				shortURL = "EwHXdJfB"
 				body     = "<a href=\"https://practicum.yandex.ru/\">Temporary Redirect</a>."
 			)
+			userID := domain.NewUserID()
+			pair := domain.URLPair{
+				ShortURL: shortURL,
+				OriginalURL: testURL,
+			}
 			urlStore, cleanup := u.CreateDependencies()
 			t.Cleanup(cleanup)
-			err := urlStore.AddURL(context.Background(), shortURL, testURL)
+			err := urlStore.AddURL(context.Background(), pair, userID)
 			require.NoError(t, err)
 			sut := New(urlStore, baseURL, zap.NewNop())
 			request := newGetRequest(shortURL)
@@ -200,7 +205,7 @@ func (u URLShortenerTest) Test(t *testing.T) {
 			urlStore, cleanup := u.CreateDependencies()
 			t.Cleanup(cleanup)
 			failingURLStore := domain.NewURLStoreDelegate(urlStore)
-			failingURLStore.AddURLFunc = func(ctx context.Context, shortURL, url string) error {
+			failingURLStore.AddURLFunc = func(ctx context.Context, pair domain.URLPair, userID domain.UserID) error {
 				return errors.New("failed to add url")
 			}
 			sut := New(failingURLStore, baseURL, zap.NewNop())
@@ -343,7 +348,7 @@ func (u URLShortenerTest) Test(t *testing.T) {
 			urlStore, cleanup := u.CreateDependencies()
 			t.Cleanup(cleanup)
 			failingURLStore := domain.NewURLStoreDelegate(urlStore)
-			failingURLStore.AddURLFunc = func(ctx context.Context, shortURL, url string) error {
+			failingURLStore.AddURLFunc = func(ctx context.Context, pair domain.URLPair, userID domain.UserID) error {
 				return errors.New("failed to add url")
 			}
 			sut := New(failingURLStore, baseURL, zap.NewNop())
@@ -405,7 +410,7 @@ func (u URLShortenerTest) Test(t *testing.T) {
 			t.Cleanup(cleanup)
 			sut := New(urlStore, baseURL, zap.NewNop())
 			originalURLs := newBatch([]string{"https://practicum.yandex.ru/", "https://google.com/"})
-			request := newBatchShortenAPIRequest(t, originalURLs)
+			request := newShortenURLsAPIRequest(t, originalURLs)
 			response := httptest.NewRecorder()
 
 			sut.ServeHTTP(response, request)
@@ -420,7 +425,7 @@ func (u URLShortenerTest) Test(t *testing.T) {
 			t.Cleanup(cleanup)
 			sut := New(urlStore, baseURL, zap.NewNop())
 			originalURLs := newBatch([]string{testURL})
-			request := newBatchShortenAPIRequest(t, originalURLs)
+			request := newShortenURLsAPIRequest(t, originalURLs)
 			request.Header.Set(contentTypeHeader, textPlain)
 			response := httptest.NewRecorder()
 
@@ -436,7 +441,7 @@ func (u URLShortenerTest) Test(t *testing.T) {
 			originalURLs := newBatch([]string{testURL})
 
 			//1
-			request := newBatchShortenAPIRequest(t, originalURLs)
+			request := newShortenURLsAPIRequest(t, originalURLs)
 			response := httptest.NewRecorder()
 
 			sut.ServeHTTP(response, request)
@@ -445,7 +450,7 @@ func (u URLShortenerTest) Test(t *testing.T) {
 			assertShortURLs(t, originalURLs, response.Body, urlStore)
 
 			//2
-			request = newBatchShortenAPIRequest(t, originalURLs)
+			request = newShortenURLsAPIRequest(t, originalURLs)
 			response = httptest.NewRecorder()
 
 			sut.ServeHTTP(response, request)
@@ -459,7 +464,7 @@ func (u URLShortenerTest) Test(t *testing.T) {
 			t.Cleanup(cleanup)
 			sut := New(urlStore, baseURL, zap.NewNop())
 			originalURLs := newBatch([]string{})
-			request := newBatchShortenAPIRequest(t, originalURLs)
+			request := newShortenURLsAPIRequest(t, originalURLs)
 			response := httptest.NewRecorder()
 
 			sut.ServeHTTP(response, request)
@@ -473,7 +478,7 @@ func (u URLShortenerTest) Test(t *testing.T) {
 			t.Cleanup(cleanup)
 			sut := New(urlStore, baseURL, zap.NewNop())
 			originalURLs := newBatch([]string{""})
-			request := newBatchShortenAPIRequest(t, originalURLs)
+			request := newShortenURLsAPIRequest(t, originalURLs)
 			response := httptest.NewRecorder()
 
 			sut.ServeHTTP(response, request)
@@ -501,7 +506,7 @@ func (u URLShortenerTest) Test(t *testing.T) {
 			t.Cleanup(cleanup)
 			sut := New(urlStore, baseURL, zap.NewNop())
 			originalURLs := newBatch([]string{testURL})
-			request := newBatchShortenAPIRequest(t, originalURLs)
+			request := newShortenURLsAPIRequest(t, originalURLs)
 			request.Header.Set(acceptEncodingHeader, "br, "+gzipEncoding)
 			response := httptest.NewRecorder()
 
@@ -517,7 +522,7 @@ func (u URLShortenerTest) Test(t *testing.T) {
 			t.Cleanup(cleanup)
 			sut := New(urlStore, baseURL, zap.NewNop())
 			originalURLs := newBatch([]string{testURL})
-			request := newBatchShortenAPIRequest(t, originalURLs)
+			request := newShortenURLsAPIRequest(t, originalURLs)
 			response := httptest.NewRecorder()
 
 			sut.ServeHTTP(response, request)
@@ -530,7 +535,7 @@ func (u URLShortenerTest) Test(t *testing.T) {
 			t.Cleanup(cleanup)
 			sut := New(urlStore, baseURL, zap.NewNop())
 			originalURLs := newBatch([]string{testURL})
-			request := newBatchShortenAPIRequest(t, originalURLs)
+			request := newShortenURLsAPIRequest(t, originalURLs)
 			response := httptest.NewRecorder()
 
 			sut.ServeHTTP(response, request)
@@ -543,12 +548,12 @@ func (u URLShortenerTest) Test(t *testing.T) {
 			urlStore, cleanup := u.CreateDependencies()
 			t.Cleanup(cleanup)
 			failingURLStore := domain.NewURLStoreDelegate(urlStore)
-			failingURLStore.AddURLsFunc = func(ctx context.Context, pairs []domain.URLPair) error {
+			failingURLStore.AddURLsFunc = func(ctx context.Context, pairs []domain.URLPair, userID domain.UserID) error {
 				return errors.New("failed to add url")
 			}
 			sut := New(failingURLStore, baseURL, zap.NewNop())
 			originalURLs := newBatch([]string{testURL})
-			request := newBatchShortenAPIRequest(t, originalURLs)
+			request := newShortenURLsAPIRequest(t, originalURLs)
 			response := httptest.NewRecorder()
 
 			sut.ServeHTTP(response, request)
@@ -567,7 +572,7 @@ func (u URLShortenerTest) Test(t *testing.T) {
 			}
 			originalURLs := newBatch(urls)
 
-			request := newBatchShortenAPIRequest(t, originalURLs)
+			request := newShortenURLsAPIRequest(t, originalURLs)
 			response := httptest.NewRecorder()
 
 			sut.ServeHTTP(response, request)
@@ -576,6 +581,72 @@ func (u URLShortenerTest) Test(t *testing.T) {
 			assertBody(t, "to many urls", response)
 		})
 	})
+
+	t.Run("get user urls", func(t *testing.T) {
+		t.Run("get urls shortened by user", func(t *testing.T) {
+			userID := domain.NewUserID()
+			userURLs := []domain.URLPair{
+				{
+					OriginalURL: "http://yandex.ru",
+					ShortURL:    "123",
+				},
+				{
+					OriginalURL: "http://mail.ru",
+					ShortURL:    "456",
+				},
+			}
+			urlStore, cleanup := u.CreateDependencies()
+			t.Cleanup(cleanup)
+			urlStore.AddURLs(context.Background(), userURLs, userID)
+			sut := New(urlStore, baseURL, zap.NewNop())
+			request := newGetUserURLsRequest(t, userID)
+			response := httptest.NewRecorder()
+
+			sut.ServeHTTP(response, request)
+
+			assert.Equal(t, http.StatusOK, response.Code)
+			assertContentType(t, applicationJSON, response)
+			assertUserURLs(t, userURLs, response.Body)
+		})
+
+		t.Run("no urls shortened by user", func(t *testing.T) {
+			otherUserID := domain.NewUserID()
+			userURLs := []domain.URLPair{
+				{
+					OriginalURL: "http://yandex.ru",
+					ShortURL:    "123",
+				},
+			}
+			urlStore, cleanup := u.CreateDependencies()
+			t.Cleanup(cleanup)
+			err := urlStore.AddURLs(context.Background(), userURLs, otherUserID)
+			require.NoError(t, err)
+			sut := New(urlStore, baseURL, zap.NewNop())
+			userID := domain.NewUserID()
+			request := newGetUserURLsRequest(t, userID)
+			response := httptest.NewRecorder()
+
+			sut.ServeHTTP(response, request)
+
+			assert.Equal(t, http.StatusNoContent, response.Code)
+			assertBody(t, "no urls", response)
+		})
+	})
+}
+
+func assertUserURLs(t *testing.T, want []domain.URLPair, r io.Reader) {
+	t.Helper()
+	var got []UserURL
+	err := json.NewDecoder(r).Decode(&got)
+
+	require.NoError(t, err, "unable to parse response from server: %v", err)
+
+	urls := make([]UserURL, len(want))
+	for i := 0; i < len(got); i++ {
+		urls[i].OriginalURL = want[i].OriginalURL
+		urls[i].ShortURL = baseURL + "/" + want[i].ShortURL
+	}
+	assert.ElementsMatch(t, urls, got)
 }
 
 func assertShortURLs(t *testing.T, req []OriginalURL, r io.Reader, store domain.URLStore) {
@@ -607,7 +678,7 @@ func newBatch(urls []string) []OriginalURL {
 	return batch
 }
 
-func newBatchShortenAPIRequest(t *testing.T, r []OriginalURL) *http.Request {
+func newShortenURLsAPIRequest(t *testing.T, r []OriginalURL) *http.Request {
 	t.Helper()
 	body, err := json.Marshal(&r)
 
@@ -691,6 +762,12 @@ func newPutRequest(url string) *http.Request {
 	r := httptest.NewRequest(http.MethodPut, "/", strings.NewReader(url))
 	r.Header.Set(contentTypeHeader, textPlain+"; charset=utf-8")
 	return r
+}
+
+func newGetUserURLsRequest(t *testing.T, userID domain.UserID) *http.Request {
+	r := httptest.NewRequest(http.MethodGet, "/api/testuser/urls", nil)
+	ctx := SetUserID(r.Context(), userID)
+	return r.WithContext(ctx)
 }
 
 func assertLocation(t *testing.T, want string, r *httptest.ResponseRecorder) {

@@ -57,6 +57,11 @@ type ShortURL struct {
 	URL           string `json:"short_url"`
 }
 
+type UserURL struct {
+	ShortURL    string `json:"short_url"`
+	OriginalURL string `json:"original_url"`
+}
+
 type Option func(*Server)
 
 func New(storage domain.URLStore, baseURL string, logger *zap.Logger, options ...Option) *Server {
@@ -89,6 +94,7 @@ func New(storage domain.URLStore, baseURL string, logger *zap.Logger, options ..
 		r.Use(chimiddleware.AllowContentType(textPlain, applicationGZIP))
 		r.Use(middleware.RequestDecoder, middleware.ResponseEncoder)
 
+		r.Get("/api/{user}/urls", s.getUserURLs)
 		r.Get("/{key}", s.redirect)
 		r.Post("/", s.shorten)
 	})
@@ -129,7 +135,11 @@ func (s *Server) shorten(w http.ResponseWriter, r *http.Request) {
 
 	ctx := r.Context()
 	shortURL := shortener.Shorten(uuid.New().ID())
-	err = s.storage.AddURL(ctx, shortURL, string(body))
+	pair := domain.URLPair{
+		ShortURL: shortURL,
+		OriginalURL: string(body),
+	}
+	err = s.storage.AddURL(ctx, pair, domain.NewUserID())
 
 	var originalURLAlreadyExists *domain.OriginalURLExistsError
 	if err != nil && !errors.As(err, &originalURLAlreadyExists) {
@@ -169,7 +179,11 @@ func (s *Server) shortenAPI(w http.ResponseWriter, r *http.Request) {
 
 	ctx := r.Context()
 	shortURL := shortener.Shorten(uuid.New().ID())
-	err = s.storage.AddURL(ctx, shortURL, req.URL)
+	pair := domain.URLPair{
+		ShortURL: shortURL,
+		OriginalURL: req.URL,
+	}
+	err = s.storage.AddURL(ctx, pair, domain.NewUserID())
 
 	var originalURLAlreadyExists *domain.OriginalURLExistsError
 	if err != nil && !errors.As(err, &originalURLAlreadyExists) {
@@ -245,7 +259,7 @@ func (s *Server) shortenURLs(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ctx := r.Context()
-	err = s.storage.AddURLs(ctx, urlPairs)
+	err = s.storage.AddURLs(ctx, urlPairs, domain.NewUserID())
 
 	if err != nil {
 		internalError(w, failedToStoreURLMessage)
@@ -276,6 +290,37 @@ func (s *Server) shortenURLs(w http.ResponseWriter, r *http.Request) {
 		internalError(w, failedToWriterResponseMessage)
 		return
 	}
+}
+
+func (s *Server) getUserURLs(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	userID, ok := GetUserID(ctx)
+
+	if !ok {
+		badRequest(w, "no user id")
+		return
+	}
+
+	urlPairs, _ := s.storage.GetUserURLs(ctx, userID)
+
+	if len(urlPairs) == 0 {
+		http.Error(w, "no urls", http.StatusNoContent)
+		return
+	}
+
+	resp := make([]UserURL, len(urlPairs))
+	for i := 0; i < len(urlPairs); i++ {
+		resp[i] = UserURL{
+			OriginalURL: urlPairs[i].OriginalURL,
+			ShortURL:    joinPath(s.baseURL, urlPairs[i].ShortURL),
+		}
+	}
+
+	content, _ := json.Marshal(resp)
+
+	w.Header().Set(contentTypeHeader, applicationJSON)
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write(content)
 }
 
 func isTooManyURLs(req []OriginalURL, maxCount int) bool {

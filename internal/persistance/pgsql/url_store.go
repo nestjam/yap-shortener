@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgerrcode"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -89,7 +90,7 @@ func (u *PostgresURLStore) GetOriginalURL(ctx context.Context, shortURL string) 
 	return originalURL, nil
 }
 
-func (u *PostgresURLStore) AddURL(ctx context.Context, shortURL, originalURL string) error {
+func (u *PostgresURLStore) AddURL(ctx context.Context, pair domain.URLPair, userID domain.UserID) error {
 	const op = "add URL"
 
 	conn, err := u.pool.Acquire(ctx)
@@ -108,13 +109,13 @@ func (u *PostgresURLStore) AddURL(ctx context.Context, shortURL, originalURL str
 
 	defer func() { _ = tx.Rollback(ctx) }()
 
-	_, err = tx.Exec(ctx, "INSERT INTO url (short_url, original_url) VALUES ($1, $2)",
-		shortURL, originalURL)
+	_, err = tx.Exec(ctx, "INSERT INTO url (short_url, original_url, user_id) VALUES ($1, $2, $3)",
+		pair.ShortURL, pair.OriginalURL, uuid.UUID(userID))
 
 	var pgErr *pgconn.PgError
 	if errors.As(err, &pgErr) && pgErr.Code == pgerrcode.UniqueViolation {
 		_ = tx.Rollback(ctx)
-		shortURL, err := getShortURL(ctx, conn, originalURL)
+		shortURL, err := getShortURL(ctx, conn, pair.OriginalURL)
 
 		if err != nil {
 			return errors.Wrapf(err, op)
@@ -148,7 +149,7 @@ func getShortURL(ctx context.Context, conn *pgxpool.Conn, originalURL string) (s
 	return shortURL, nil
 }
 
-func (u *PostgresURLStore) AddURLs(ctx context.Context, pairs []domain.URLPair) error {
+func (u *PostgresURLStore) AddURLs(ctx context.Context, pairs []domain.URLPair, userID domain.UserID) error {
 	const op = "add URLs"
 	conn, err := u.pool.Acquire(ctx)
 	defer conn.Release()
@@ -166,8 +167,8 @@ func (u *PostgresURLStore) AddURLs(ctx context.Context, pairs []domain.URLPair) 
 
 	defer func() { _ = tx.Rollback(ctx) }()
 
-	columns := []string{"short_url", "original_url"}
-	rows := pgx.CopyFromRows(prepareRows(pairs))
+	columns := []string{"short_url", "original_url", "user_id"}
+	rows := pgx.CopyFromRows(prepareRows(pairs, userID))
 	_, err = conn.CopyFrom(ctx, pgx.Identifier{"url"}, columns, rows)
 
 	if err != nil {
@@ -183,12 +184,12 @@ func (u *PostgresURLStore) AddURLs(ctx context.Context, pairs []domain.URLPair) 
 	return nil
 }
 
-func prepareRows(pairs []domain.URLPair) [][]any {
+func prepareRows(pairs []domain.URLPair, userID domain.UserID) [][]any {
 	rows := make([][]any, len(pairs))
 
 	for i := 0; i < len(pairs); i++ {
 		pair := pairs[i]
-		rows[i] = []any{pair.ShortURL, pair.OriginalURL}
+		rows[i] = []any{pair.ShortURL, pair.OriginalURL, uuid.UUID(userID)}
 	}
 
 	return rows
@@ -204,4 +205,40 @@ func (u *PostgresURLStore) IsAvailable(ctx context.Context) bool {
 
 	err = conn.Ping(ctx)
 	return err == nil
+}
+
+func (u *PostgresURLStore) GetUserURLs(ctx context.Context, userID domain.UserID) ([]domain.URLPair, error) {
+	const op = "get user URLs"
+	conn, err := u.pool.Acquire(ctx)
+	defer conn.Release()
+
+	if err != nil {
+		return nil, errors.Wrapf(err, op)
+	}
+
+	rows, err := conn.Query(ctx, "SELECT short_url, original_url FROM url WHERE user_id = $1", uuid.UUID(userID))
+
+	if err != nil {
+		return nil, errors.Wrapf(err, op)
+	}
+
+	defer rows.Close()
+
+	var userURLs []domain.URLPair
+	for rows.Next() {
+		userURL := domain.URLPair{}
+		err := rows.Scan(&userURL.ShortURL, &userURL.OriginalURL)
+
+		if err != nil {
+			return nil, errors.Wrapf(err, op)
+		}
+
+		userURLs = append(userURLs, userURL)
+	}
+
+	if rows.Err() != nil {
+		return nil, errors.Wrapf(err, op)
+	}
+
+	return userURLs, nil
 }

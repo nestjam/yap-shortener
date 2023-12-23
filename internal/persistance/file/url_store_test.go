@@ -71,30 +71,39 @@ func TestGet(t *testing.T) {
 	})
 }
 
-func TestAdd(t *testing.T) {
+func TestAddURL(t *testing.T) {
 	t.Run("write url to writer", func(t *testing.T) {
 		const (
 			shortURL    = "abc"
 			originalURL = "http://example.com"
 		)
-		var (
-			want   = StoredURL{ID: 0, ShortURL: shortURL, OriginalURL: originalURL}
-			urls   = []StoredURL{}
-			rw     = getReadWriter(t, urls)
-			sut, _ = New(context.Background(), rw)
-		)
-
-		err := sut.AddURL(context.Background(), shortURL, originalURL)
+		ctx := context.Background()
+		userID := domain.NewUserID()
+		want := StoredURL{
+			ID:          0,
+			ShortURL:    shortURL,
+			OriginalURL: originalURL,
+			UserID: userID,
+		}
+		pair := domain.URLPair{
+			ShortURL: shortURL,
+			OriginalURL: originalURL,
+		}
+		urls := []StoredURL{}
+		rw := getReadWriter(t, urls)
+		sut, _ := New(ctx, rw)
+		err := sut.AddURL(ctx, pair, userID)
 		require.NoError(t, err)
 
 		assertStoredURL(t, want, rw)
 	})
 }
 
-func TestAddBatch(t *testing.T) {
+func TestAddURLs(t *testing.T) {
 	t.Run("write batch of urls to writer", func(t *testing.T) {
 		var (
-			urls = []domain.URLPair{
+			userID = domain.NewUserID()
+			urls   = []domain.URLPair{
 				{
 					ShortURL:    "abc",
 					OriginalURL: "http://example.com",
@@ -109,11 +118,13 @@ func TestAddBatch(t *testing.T) {
 					ID:          0,
 					ShortURL:    urls[0].ShortURL,
 					OriginalURL: urls[0].OriginalURL,
+					UserID:      userID,
 				},
 				{
 					ID:          1,
 					ShortURL:    urls[1].ShortURL,
 					OriginalURL: urls[1].OriginalURL,
+					UserID:      userID,
 				},
 			}
 			stored = []StoredURL{}
@@ -121,7 +132,7 @@ func TestAddBatch(t *testing.T) {
 			sut, _ = New(context.Background(), rw)
 		)
 
-		err := sut.AddURLs(context.Background(), urls)
+		err := sut.AddURLs(context.Background(), urls, userID)
 
 		require.NoError(t, err)
 		assertStoredURLs(t, want, rw)

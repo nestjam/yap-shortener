@@ -9,9 +9,10 @@ import (
 // for URLStore consumers.
 type URLStoreDelegate struct {
 	GetOriginalURLFunc func(ctx context.Context, shortURL string) (string, error)
-	AddURLFunc         func(ctx context.Context, shortURL, url string) error
-	AddURLsFunc        func(ctx context.Context, pairs []URLPair) error
+	AddURLFunc         func(ctx context.Context, pair URLPair, userID UserID) error
+	AddURLsFunc        func(ctx context.Context, pairs []URLPair, userID UserID) error
 	IsAvailableFunc    func(ctx context.Context) bool
+	GetUserURLsFunc    func(ctx context.Context, userID UserID) ([]URLPair, error)
 	delegate           URLStore
 }
 
@@ -32,11 +33,11 @@ func (u *URLStoreDelegate) GetOriginalURL(ctx context.Context, shortURL string) 
 	return url, nil
 }
 
-func (u *URLStoreDelegate) AddURL(ctx context.Context, shortURL, url string) error {
+func (u *URLStoreDelegate) AddURL(ctx context.Context, pair URLPair, userID UserID) error {
 	if u.AddURLFunc != nil {
-		return u.AddURLFunc(ctx, shortURL, url)
+		return u.AddURLFunc(ctx, pair, userID)
 	}
-	err := u.delegate.AddURL(ctx, shortURL, url)
+	err := u.delegate.AddURL(ctx, pair, userID)
 
 	if err != nil {
 		return fmt.Errorf("add url to store delegate: %w", err)
@@ -53,16 +54,24 @@ func (u *URLStoreDelegate) IsAvailable(ctx context.Context) bool {
 	return u.delegate.IsAvailable(ctx)
 }
 
-func (u *URLStoreDelegate) AddURLs(ctx context.Context, pairs []URLPair) error {
+func (u *URLStoreDelegate) AddURLs(ctx context.Context, pairs []URLPair, userID UserID) error {
 	if u.AddURLsFunc != nil {
-		return u.AddURLsFunc(ctx, pairs)
+		return u.AddURLsFunc(ctx, pairs, userID)
 	}
 
-	err := u.delegate.AddURLs(ctx, pairs)
+	err := u.delegate.AddURLs(ctx, pairs, userID)
 
 	if err != nil {
 		return fmt.Errorf("add batch of urls to store delegate: %w", err)
 	}
 
 	return nil
+}
+
+func (u *URLStoreDelegate) GetUserURLs(ctx context.Context, userID UserID) ([]URLPair, error) {
+	if u.IsAvailableFunc != nil {
+		return u.GetUserURLsFunc(ctx, userID)
+	}
+
+	return u.delegate.GetUserURLs(ctx, userID)
 }
