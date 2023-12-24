@@ -33,7 +33,6 @@ const (
 	failedToStoreURLMessage        = "failed to store url"
 	failedToParseRequestMessage    = "failed to parse request"
 	failedToPrepareResponseMessage = "failed to prepare response"
-	failedToGetUserIDMessage       = "failed to get user id"
 	secretKey                      = "supersecretkey"
 	tokenExp                       = time.Hour * 3
 )
@@ -154,13 +153,7 @@ func (s *Server) shorten(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ctx := r.Context()
-	user, ok := customctx.GetUser(ctx)
-
-	if !ok {
-		badRequest(w, "no user id")
-		return
-	}
-
+	user, _ := customctx.GetUser(ctx)
 	shortURL := shortener.Shorten(uuid.New().ID())
 	pair := domain.URLPair{
 		ShortURL:    shortURL,
@@ -205,13 +198,7 @@ func (s *Server) shortenAPI(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ctx := r.Context()
-	user, ok := customctx.GetUser(ctx)
-
-	if !ok {
-		badRequest(w, failedToGetUserIDMessage)
-		return
-	}
-
+	user, _ := customctx.GetUser(ctx)
 	shortURL := shortener.Shorten(uuid.New().ID())
 	pair := domain.URLPair{
 		ShortURL:    shortURL,
@@ -293,13 +280,7 @@ func (s *Server) shortenURLs(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ctx := r.Context()
-	user, ok := customctx.GetUser(ctx)
-
-	if !ok {
-		badRequest(w, failedToGetUserIDMessage)
-		return
-	}
-
+	user, _ := customctx.GetUser(ctx)
 	err = s.storage.AddURLs(ctx, urlPairs, user.ID)
 
 	if err != nil {
@@ -335,12 +316,7 @@ func (s *Server) shortenURLs(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) getUserURLs(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	user, ok := customctx.GetUser(ctx)
-
-	if !ok {
-		badRequest(w, failedToGetUserIDMessage)
-		return
-	}
+	user, _ := customctx.GetUser(ctx)
 
 	if user.IsNew {
 		http.Error(w, "unauthorized", http.StatusUnauthorized)
