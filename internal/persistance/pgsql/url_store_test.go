@@ -1,3 +1,6 @@
+//go:build integration
+// +build integration
+
 package pgsql
 
 import (
@@ -15,9 +18,6 @@ const connString = "postgres://postgres:postgres@localhost:5432/praktikum?sslmod
 func TestPostgresURLStore(t *testing.T) {
 	if testing.Short() {
 		t.Skip("Skipping long-running test.")
-	}
-	if !pingDB(t, connString) {
-		t.Skip("Skipping test: unavailable database.")
 	}
 	domain.URLStoreContract{
 		NewURLStore: func() (domain.URLStore, func()) {
