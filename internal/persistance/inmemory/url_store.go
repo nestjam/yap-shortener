@@ -35,7 +35,7 @@ func (u *InmemoryURLStore) AddURL(ctx context.Context, pair domain.URLPair, user
 
 	rec := urlRecord{
 		originalURL: pair.OriginalURL,
-		userID: userID,
+		userID:      userID,
 	}
 	u.m.Store(pair.ShortURL, rec)
 	return nil
@@ -46,7 +46,7 @@ func (u *InmemoryURLStore) findShortURL(originalURL string) (string, bool) {
 	ok := false
 
 	u.m.Range(func(key, value any) bool {
-		rec := value.(urlRecord)
+		rec, _ := value.(urlRecord)
 		if rec.originalURL == originalURL {
 			ok = true
 			shortURL, _ = key.(string)
@@ -77,7 +77,7 @@ func (u *InmemoryURLStore) GetUserURLs(ctx context.Context, userID domain.UserID
 	var userURLs []domain.URLPair
 
 	u.m.Range(func(key, value any) bool {
-		rec := value.(urlRecord)
+		rec, _ := value.(urlRecord)
 
 		if rec.userID != userID {
 			return true

@@ -73,5 +73,11 @@ func (u *URLStoreDelegate) GetUserURLs(ctx context.Context, userID UserID) ([]UR
 		return u.GetUserURLsFunc(ctx, userID)
 	}
 
-	return u.delegate.GetUserURLs(ctx, userID)
+	urls, err := u.delegate.GetUserURLs(ctx, userID)
+
+	if err != nil {
+		return nil, fmt.Errorf("get user urls from store delegate: %w", err)
+	}
+
+	return urls, nil
 }

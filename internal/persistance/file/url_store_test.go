@@ -83,10 +83,10 @@ func TestAddURL(t *testing.T) {
 			ID:          0,
 			ShortURL:    shortURL,
 			OriginalURL: originalURL,
-			UserID: userID,
+			UserID:      userID,
 		}
 		pair := domain.URLPair{
-			ShortURL: shortURL,
+			ShortURL:    shortURL,
 			OriginalURL: originalURL,
 		}
 		urls := []StoredURL{}

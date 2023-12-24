@@ -7,10 +7,13 @@ import (
 	"io"
 	"net/http"
 	"strconv"
+	"time"
 
 	chimiddleware "github.com/go-chi/chi/middleware"
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
+	"github.com/nestjam/yap-shortener/internal/auth"
+	customctx "github.com/nestjam/yap-shortener/internal/context"
 	"github.com/nestjam/yap-shortener/internal/domain"
 	"github.com/nestjam/yap-shortener/internal/middleware"
 	"github.com/nestjam/yap-shortener/internal/shortener"
@@ -30,6 +33,9 @@ const (
 	failedToStoreURLMessage        = "failed to store url"
 	failedToParseRequestMessage    = "failed to parse request"
 	failedToPrepareResponseMessage = "failed to prepare response"
+	failedToGetUserIDMessage       = "failed to get user id"
+	secretKey                      = "supersecretkey"
+	tokenExp                       = time.Hour * 3
 )
 
 type Server struct {
@@ -76,6 +82,8 @@ func New(storage domain.URLStore, baseURL string, logger *zap.Logger, options ..
 		opt(s)
 	}
 
+	authorizer := auth.New(secretKey, tokenExp)
+
 	r.Use(middleware.ResponseLogger(logger))
 
 	r.Group(func(r chi.Router) {
@@ -85,6 +93,7 @@ func New(storage domain.URLStore, baseURL string, logger *zap.Logger, options ..
 	r.Group(func(r chi.Router) {
 		r.Use(chimiddleware.AllowContentType(applicationJSON))
 		r.Use(middleware.RequestDecoder, middleware.ResponseEncoder)
+		r.Use(middleware.Auth(authorizer))
 
 		r.Post("/api/shorten/batch", s.shortenURLs)
 		r.Post("/api/shorten", s.shortenAPI)
@@ -94,9 +103,20 @@ func New(storage domain.URLStore, baseURL string, logger *zap.Logger, options ..
 		r.Use(chimiddleware.AllowContentType(textPlain, applicationGZIP))
 		r.Use(middleware.RequestDecoder, middleware.ResponseEncoder)
 
-		r.Get("/api/{user}/urls", s.getUserURLs)
 		r.Get("/{key}", s.redirect)
-		r.Post("/", s.shorten)
+
+		r.Group(func(r chi.Router) {
+			r.Use(middleware.Auth(authorizer))
+
+			r.Post("/", s.shorten)
+		})
+	})
+
+	r.Group(func(r chi.Router) {
+		r.Use(middleware.ResponseEncoder)
+		r.Use(middleware.Auth(authorizer))
+
+		r.Get("/api/user/urls", s.getUserURLs)
 	})
 
 	return s
@@ -134,12 +154,19 @@ func (s *Server) shorten(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ctx := r.Context()
+	user, ok := customctx.GetUser(ctx)
+
+	if !ok {
+		badRequest(w, "no user id")
+		return
+	}
+
 	shortURL := shortener.Shorten(uuid.New().ID())
 	pair := domain.URLPair{
-		ShortURL: shortURL,
+		ShortURL:    shortURL,
 		OriginalURL: string(body),
 	}
-	err = s.storage.AddURL(ctx, pair, domain.NewUserID())
+	err = s.storage.AddURL(ctx, pair, user.ID)
 
 	var originalURLAlreadyExists *domain.OriginalURLExistsError
 	if err != nil && !errors.As(err, &originalURLAlreadyExists) {
@@ -178,12 +205,19 @@ func (s *Server) shortenAPI(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ctx := r.Context()
+	user, ok := customctx.GetUser(ctx)
+
+	if !ok {
+		badRequest(w, failedToGetUserIDMessage)
+		return
+	}
+
 	shortURL := shortener.Shorten(uuid.New().ID())
 	pair := domain.URLPair{
-		ShortURL: shortURL,
+		ShortURL:    shortURL,
 		OriginalURL: req.URL,
 	}
-	err = s.storage.AddURL(ctx, pair, domain.NewUserID())
+	err = s.storage.AddURL(ctx, pair, user.ID)
 
 	var originalURLAlreadyExists *domain.OriginalURLExistsError
 	if err != nil && !errors.As(err, &originalURLAlreadyExists) {
@@ -259,7 +293,14 @@ func (s *Server) shortenURLs(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ctx := r.Context()
-	err = s.storage.AddURLs(ctx, urlPairs, domain.NewUserID())
+	user, ok := customctx.GetUser(ctx)
+
+	if !ok {
+		badRequest(w, failedToGetUserIDMessage)
+		return
+	}
+
+	err = s.storage.AddURLs(ctx, urlPairs, user.ID)
 
 	if err != nil {
 		internalError(w, failedToStoreURLMessage)
@@ -294,14 +335,19 @@ func (s *Server) shortenURLs(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) getUserURLs(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	userID, ok := GetUserID(ctx)
+	user, ok := customctx.GetUser(ctx)
 
 	if !ok {
-		badRequest(w, "no user id")
+		badRequest(w, failedToGetUserIDMessage)
 		return
 	}
 
-	urlPairs, _ := s.storage.GetUserURLs(ctx, userID)
+	if user.IsNew {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	urlPairs, _ := s.storage.GetUserURLs(ctx, user.ID)
 
 	if len(urlPairs) == 0 {
 		http.Error(w, "no urls", http.StatusNoContent)

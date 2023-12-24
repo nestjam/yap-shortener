@@ -38,7 +38,7 @@ func New(ctx context.Context, rw io.ReadWriter) (*FileURLStore, error) {
 	for i := 0; i < len(records); i++ {
 		rec := records[i]
 		pair := domain.URLPair{
-			ShortURL: rec.ShortURL,
+			ShortURL:    rec.ShortURL,
 			OriginalURL: rec.OriginalURL,
 		}
 		err := s.AddURL(ctx, pair, rec.UserID)
@@ -100,7 +100,7 @@ func (u *FileURLStore) AddURL(ctx context.Context, pair domain.URLPair, userID d
 		ID:          u.id,
 		ShortURL:    pair.ShortURL,
 		OriginalURL: pair.OriginalURL,
-		UserID: userID,
+		UserID:      userID,
 	}
 	err = u.encoder.Encode(url)
 	u.id++

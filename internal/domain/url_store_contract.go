@@ -18,7 +18,7 @@ func (c URLStoreContract) Test(t *testing.T) {
 	t.Run("add url", func(t *testing.T) {
 		pair := URLPair{
 			OriginalURL: "http://example.com",
-			ShortURL: "abc",
+			ShortURL:    "abc",
 		}
 		userID := NewUserID()
 		sut, tearDown := c.NewURLStore()
@@ -80,7 +80,7 @@ func (c URLStoreContract) Test(t *testing.T) {
 	t.Run("add same url twice", func(t *testing.T) {
 		pair := URLPair{
 			OriginalURL: "http://example.com",
-			ShortURL: "abc",
+			ShortURL:    "abc",
 		}
 		ctx := context.Background()
 		userID := NewUserID()

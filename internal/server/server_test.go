@@ -15,6 +15,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/nestjam/yap-shortener/internal/auth"
 	"github.com/nestjam/yap-shortener/internal/domain"
 	"github.com/nestjam/yap-shortener/internal/persistance/inmemory"
 	"github.com/stretchr/testify/assert"
@@ -30,6 +31,7 @@ const (
 	gzipEncoding          = "gzip"
 	apiShortenPath        = "/api/shorten"
 	apiBatchShortenPath   = "/api/shorten/batch"
+	getUserURLsPath       = "/api/user/urls"
 	pingPath              = "ping"
 )
 
@@ -59,7 +61,7 @@ func (u URLShortenerTest) Test(t *testing.T) {
 			)
 			userID := domain.NewUserID()
 			pair := domain.URLPair{
-				ShortURL: shortURL,
+				ShortURL:    shortURL,
 				OriginalURL: testURL,
 			}
 			urlStore, cleanup := u.CreateDependencies()
@@ -597,7 +599,8 @@ func (u URLShortenerTest) Test(t *testing.T) {
 			}
 			urlStore, cleanup := u.CreateDependencies()
 			t.Cleanup(cleanup)
-			urlStore.AddURLs(context.Background(), userURLs, userID)
+			err := urlStore.AddURLs(context.Background(), userURLs, userID)
+			require.NoError(t, err)
 			sut := New(urlStore, baseURL, zap.NewNop())
 			request := newGetUserURLsRequest(t, userID)
 			response := httptest.NewRecorder()
@@ -630,6 +633,18 @@ func (u URLShortenerTest) Test(t *testing.T) {
 
 			assert.Equal(t, http.StatusNoContent, response.Code)
 			assertBody(t, "no urls", response)
+		})
+
+		t.Run("user is not authorized", func(t *testing.T) {
+			urlStore, cleanup := u.CreateDependencies()
+			t.Cleanup(cleanup)
+			sut := New(urlStore, baseURL, zap.NewNop())
+			request := httptest.NewRequest(http.MethodGet, getUserURLsPath, nil)
+			response := httptest.NewRecorder()
+
+			sut.ServeHTTP(response, request)
+
+			assert.Equal(t, http.StatusUnauthorized, response.Code)
 		})
 	})
 }
@@ -765,9 +780,15 @@ func newPutRequest(url string) *http.Request {
 }
 
 func newGetUserURLsRequest(t *testing.T, userID domain.UserID) *http.Request {
-	r := httptest.NewRequest(http.MethodGet, "/api/testuser/urls", nil)
-	ctx := SetUserID(r.Context(), userID)
-	return r.WithContext(ctx)
+	t.Helper()
+	r := httptest.NewRequest(http.MethodGet, getUserURLsPath, nil)
+	a := auth.New(secretKey, tokenExp)
+
+	cookie, err := a.CreateCookie(userID)
+	require.NoError(t, err)
+
+	r.AddCookie(cookie)
+	return r
 }
 
 func assertLocation(t *testing.T, want string, r *httptest.ResponseRecorder) {
