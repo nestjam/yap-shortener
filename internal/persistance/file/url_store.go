@@ -113,13 +113,7 @@ func (u *FileURLStore) AddURL(ctx context.Context, pair domain.URLPair, userID d
 }
 
 func (u *FileURLStore) AddURLs(ctx context.Context, pairs []domain.URLPair, userID domain.UserID) error {
-	const msg = "failed to add URLs"
-
-	err := u.s.AddURLs(ctx, pairs, userID)
-
-	if err != nil {
-		return errors.Wrap(err, msg)
-	}
+	_ = u.s.AddURLs(ctx, pairs, userID)
 
 	u.mu.Lock()
 	defer u.mu.Unlock()
@@ -131,11 +125,11 @@ func (u *FileURLStore) AddURLs(ctx context.Context, pairs []domain.URLPair, user
 			OriginalURL: pairs[i].OriginalURL,
 			UserID:      userID,
 		}
-		err = u.encoder.Encode(url)
+		err := u.encoder.Encode(url)
 		u.id++
 
 		if err != nil {
-			return errors.Wrap(err, msg)
+			return errors.Wrap(err, "failed to add URLs")
 		}
 	}
 
@@ -147,13 +141,6 @@ func (u *FileURLStore) IsAvailable(ctx context.Context) bool {
 }
 
 func (u *FileURLStore) GetUserURLs(ctx context.Context, userID domain.UserID) ([]domain.URLPair, error) {
-	const op = "get user URLs"
-
-	urls, err := u.s.GetUserURLs(ctx, userID)
-
-	if err != nil {
-		return nil, errors.Wrap(err, op)
-	}
-
+	urls, _ := u.s.GetUserURLs(ctx, userID)
 	return urls, nil
 }
