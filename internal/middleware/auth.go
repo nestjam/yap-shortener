@@ -6,7 +6,6 @@ import (
 	"github.com/nestjam/yap-shortener/internal/auth"
 	customctx "github.com/nestjam/yap-shortener/internal/context"
 	"github.com/nestjam/yap-shortener/internal/domain"
-	"github.com/pkg/errors"
 )
 
 func Auth(a *auth.UserAuth) func(h http.Handler) http.Handler {
@@ -15,12 +14,7 @@ func Auth(a *auth.UserAuth) func(h http.Handler) http.Handler {
 			userID, isNew := createOrGetUserID(r, a)
 
 			if isNew {
-				err := addUserID(w, a, userID)
-
-				if err != nil {
-					w.WriteHeader(http.StatusInternalServerError)
-					return
-				}
+				addUserID(w, a, userID)
 			}
 
 			ctx := r.Context()
@@ -41,14 +35,7 @@ func createOrGetUserID(r *http.Request, a *auth.UserAuth) (domain.UserID, bool) 
 	return userID, false
 }
 
-func addUserID(w http.ResponseWriter, a *auth.UserAuth, userID domain.UserID) error {
-	const op = "add user id"
-	cookie, err := a.CreateCookie(userID)
-
-	if err != nil {
-		return errors.Wrap(err, op)
-	}
-
+func addUserID(w http.ResponseWriter, a *auth.UserAuth, userID domain.UserID) {
+	cookie, _ := a.CreateCookie(userID)
 	http.SetCookie(w, cookie)
-	return nil
 }
