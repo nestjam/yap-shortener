@@ -29,7 +29,6 @@ jobs:
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: ./coverage.out
-          gcov_ignore: ./internal/persistance/pgsql/url_store.go
           flags: unittests
           name: codecov-umbrella
       - name: Archive code coverage results
