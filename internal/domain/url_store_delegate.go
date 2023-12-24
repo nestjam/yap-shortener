@@ -13,6 +13,7 @@ type URLStoreDelegate struct {
 	AddURLsFunc        func(ctx context.Context, pairs []URLPair, userID UserID) error
 	IsAvailableFunc    func(ctx context.Context) bool
 	GetUserURLsFunc    func(ctx context.Context, userID UserID) ([]URLPair, error)
+	DeleteUserURLsFunc func(ctx context.Context, shortURLs []string, userID UserID) error
 	delegate           URLStore
 }
 
@@ -69,7 +70,7 @@ func (u *URLStoreDelegate) AddURLs(ctx context.Context, pairs []URLPair, userID 
 }
 
 func (u *URLStoreDelegate) GetUserURLs(ctx context.Context, userID UserID) ([]URLPair, error) {
-	if u.IsAvailableFunc != nil {
+	if u.GetUserURLsFunc != nil {
 		return u.GetUserURLsFunc(ctx, userID)
 	}
 
@@ -80,4 +81,18 @@ func (u *URLStoreDelegate) GetUserURLs(ctx context.Context, userID UserID) ([]UR
 	}
 
 	return urls, nil
+}
+
+func (u *URLStoreDelegate) DeleteUserURLs(ctx context.Context, shortURLs []string, userID UserID) error {
+	if u.DeleteUserURLsFunc != nil {
+		return u.DeleteUserURLsFunc(ctx, shortURLs, userID)
+	}
+
+	err := u.delegate.DeleteUserURLs(ctx, shortURLs, userID)
+
+	if err != nil {
+		return fmt.Errorf("delete user urls from store delegate: %w", err)
+	}
+
+	return nil
 }

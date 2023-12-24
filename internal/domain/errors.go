@@ -6,7 +6,8 @@ import (
 )
 
 var (
-	ErrOriginalURLNotFound = errors.New("not found")
+	ErrOriginalURLNotFound  = errors.New("not found")
+	ErrOriginalURLIsDeleted = errors.New("url is deleted")
 )
 
 type OriginalURLExistsError struct {

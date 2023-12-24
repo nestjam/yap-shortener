@@ -2,6 +2,7 @@ package inmemory
 
 import (
 	"context"
+	"errors"
 	"sync"
 
 	"github.com/nestjam/yap-shortener/internal/domain"
@@ -14,6 +15,7 @@ type InmemoryURLStore struct {
 type urlRecord struct {
 	originalURL string
 	userID      domain.UserID
+	isDeleted   bool
 }
 
 func New() *InmemoryURLStore {
@@ -21,11 +23,23 @@ func New() *InmemoryURLStore {
 }
 
 func (u *InmemoryURLStore) GetOriginalURL(ctx context.Context, shortURL string) (string, error) {
-	rec, ok := u.m.Load(shortURL)
+	value, ok := u.m.Load(shortURL)
+
 	if !ok {
 		return "", domain.ErrOriginalURLNotFound
 	}
-	return (rec.(urlRecord)).originalURL, nil
+
+	rec, ok := value.(urlRecord)
+
+	if !ok {
+		return "", errors.New("failed type assertion")
+	}
+
+	if rec.isDeleted {
+		return "", domain.ErrOriginalURLIsDeleted
+	}
+
+	return rec.originalURL, nil
 }
 
 func (u *InmemoryURLStore) AddURL(ctx context.Context, pair domain.URLPair, userID domain.UserID) error {
@@ -43,19 +57,24 @@ func (u *InmemoryURLStore) AddURL(ctx context.Context, pair domain.URLPair, user
 
 func (u *InmemoryURLStore) findShortURL(originalURL string) (string, bool) {
 	shortURL := ""
-	ok := false
+	found := false
 
 	u.m.Range(func(key, value any) bool {
-		rec, _ := value.(urlRecord)
+		rec, ok := value.(urlRecord)
+
+		if !ok {
+			return true
+		}
+
 		if rec.originalURL == originalURL {
-			ok = true
+			found = true
 			shortURL, _ = key.(string)
 			return false
 		}
 		return true
 	})
 
-	return shortURL, ok
+	return shortURL, found
 }
 
 func (u *InmemoryURLStore) AddURLs(ctx context.Context, urls []domain.URLPair, userID domain.UserID) error {
@@ -77,9 +96,9 @@ func (u *InmemoryURLStore) GetUserURLs(ctx context.Context, userID domain.UserID
 	var userURLs []domain.URLPair
 
 	u.m.Range(func(key, value any) bool {
-		rec, _ := value.(urlRecord)
+		rec, ok := value.(urlRecord)
 
-		if rec.userID != userID {
+		if !ok || rec.userID != userID || rec.isDeleted {
 			return true
 		}
 
@@ -92,4 +111,27 @@ func (u *InmemoryURLStore) GetUserURLs(ctx context.Context, userID domain.UserID
 	})
 
 	return userURLs, nil
+}
+
+func (u *InmemoryURLStore) DeleteUserURLs(ctx context.Context, shortURLs []string, userID domain.UserID) error {
+	for _, shortURL := range shortURLs {
+		value, ok := u.m.Load(shortURL)
+
+		if !ok {
+			continue
+		}
+
+		rec, ok := value.(urlRecord)
+
+		if !ok {
+			continue
+		}
+
+		if rec.userID == userID {
+			rec.isDeleted = true
+			_, _ = u.m.Swap(shortURL, rec)
+		}
+	}
+
+	return nil
 }

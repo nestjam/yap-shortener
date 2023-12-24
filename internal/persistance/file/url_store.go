@@ -74,7 +74,6 @@ func readURLs(rw io.ReadWriter) ([]StoredURL, error) {
 
 func (u *FileURLStore) GetOriginalURL(ctx context.Context, shortURL string) (string, error) {
 	const op = "get original URL"
-
 	originalURL, err := u.s.GetOriginalURL(ctx, shortURL)
 
 	if err != nil {
@@ -86,7 +85,6 @@ func (u *FileURLStore) GetOriginalURL(ctx context.Context, shortURL string) (str
 
 func (u *FileURLStore) AddURL(ctx context.Context, pair domain.URLPair, userID domain.UserID) error {
 	const op = "add URL"
-
 	err := u.s.AddURL(ctx, pair, userID)
 
 	if err != nil {
@@ -143,4 +141,9 @@ func (u *FileURLStore) IsAvailable(ctx context.Context) bool {
 func (u *FileURLStore) GetUserURLs(ctx context.Context, userID domain.UserID) ([]domain.URLPair, error) {
 	urls, _ := u.s.GetUserURLs(ctx, userID)
 	return urls, nil
+}
+
+func (u *FileURLStore) DeleteUserURLs(ctx context.Context, shortURLs []string, userID domain.UserID) error {
+	_ = u.s.DeleteUserURLs(ctx, shortURLs, userID)
+	return nil
 }

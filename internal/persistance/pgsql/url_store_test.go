@@ -1,13 +1,9 @@
-//go:build integration
-// +build integration
-
 package pgsql
 
 import (
 	"context"
 	"testing"
 
-	"github.com/jackc/pgx/v5"
 	"github.com/nestjam/yap-shortener/internal/domain"
 	"github.com/nestjam/yap-shortener/migration"
 	"github.com/stretchr/testify/require"
@@ -34,20 +30,4 @@ func TestPostgresURLStore(t *testing.T) {
 			}
 		},
 	}.Test(t)
-}
-
-func pingDB(t *testing.T, connString string) bool {
-	t.Helper()
-
-	conn, err := pgx.Connect(context.Background(), connString)
-
-	if err != nil {
-		return false
-	}
-
-	defer func() {
-		_ = conn.Close(context.Background())
-	}()
-
-	return conn.Ping(context.Background()) == nil
 }

@@ -12,5 +12,6 @@ type URLStore interface {
 	AddURL(ctx context.Context, pair URLPair, userID UserID) error
 	AddURLs(ctx context.Context, pairs []URLPair, userID UserID) error
 	GetUserURLs(ctx context.Context, userID UserID) ([]URLPair, error)
+	DeleteUserURLs(ctx context.Context, shortURLs []string, userID UserID) error
 	IsAvailable(ctx context.Context) bool
 }

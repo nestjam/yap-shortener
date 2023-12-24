@@ -83,6 +83,8 @@ func New(storage domain.URLStore, baseURL string, logger *zap.Logger, options ..
 
 	authorizer := auth.New(secretKey, tokenExp)
 
+	const apiUserURLsPath = "/api/user/urls"
+
 	r.Use(middleware.ResponseLogger(logger))
 
 	r.Group(func(r chi.Router) {
@@ -96,6 +98,8 @@ func New(storage domain.URLStore, baseURL string, logger *zap.Logger, options ..
 
 		r.Post("/api/shorten/batch", s.shortenURLs)
 		r.Post("/api/shorten", s.shortenAPI)
+
+		r.Delete(apiUserURLsPath, s.deleteUserURLs)
 	})
 
 	r.Group(func(r chi.Router) {
@@ -115,7 +119,7 @@ func New(storage domain.URLStore, baseURL string, logger *zap.Logger, options ..
 		r.Use(middleware.ResponseEncoder)
 		r.Use(middleware.Auth(authorizer))
 
-		r.Get("/api/user/urls", s.getUserURLs)
+		r.Get(apiUserURLsPath, s.getUserURLs)
 	})
 
 	return s
@@ -132,6 +136,11 @@ func (s *Server) redirect(w http.ResponseWriter, r *http.Request) {
 
 	if errors.Is(err, domain.ErrOriginalURLNotFound) {
 		notFound(w, err.Error())
+		return
+	}
+
+	if errors.Is(err, domain.ErrOriginalURLIsDeleted) {
+		http.Error(w, "url is deleted", http.StatusGone)
 		return
 	}
 
@@ -295,7 +304,6 @@ func (s *Server) shortenURLs(w http.ResponseWriter, r *http.Request) {
 			URL:           joinPath(s.baseURL, urlPairs[i].ShortURL),
 		}
 	}
-
 	content, err := json.Marshal(resp)
 
 	if err != nil {
@@ -337,7 +345,6 @@ func (s *Server) getUserURLs(w http.ResponseWriter, r *http.Request) {
 			ShortURL:    joinPath(s.baseURL, urlPairs[i].ShortURL),
 		}
 	}
-
 	content, _ := json.Marshal(resp)
 
 	w.Header().Set(contentTypeHeader, applicationJSON)
@@ -345,8 +352,31 @@ func (s *Server) getUserURLs(w http.ResponseWriter, r *http.Request) {
 	_, _ = w.Write(content)
 }
 
-func isTooManyURLs(req []OriginalURL, maxCount int) bool {
-	return maxCount > 0 && len(req) > maxCount
+func (s *Server) deleteUserURLs(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	user, _ := customctx.GetUser(ctx)
+
+	var shortURLs []string
+	decoder := json.NewDecoder(r.Body)
+	err := decoder.Decode(&shortURLs)
+
+	if err != nil {
+		badRequest(w, failedToParseRequestMessage)
+		return
+	}
+
+	err = s.storage.DeleteUserURLs(ctx, shortURLs, user.ID)
+
+	if err != nil {
+		internalError(w, "failed to delete user urls")
+		return
+	}
+
+	w.WriteHeader(http.StatusAccepted)
+}
+
+func isTooManyURLs(urls []OriginalURL, maxCount int) bool {
+	return maxCount > 0 && len(urls) > maxCount
 }
 
 func forbidden(w http.ResponseWriter) {

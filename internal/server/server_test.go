@@ -31,7 +31,7 @@ const (
 	gzipEncoding          = "gzip"
 	apiShortenPath        = "/api/shorten"
 	apiBatchShortenPath   = "/api/shorten/batch"
-	getUserURLsPath       = "/api/user/urls"
+	userURLsPath          = "/api/user/urls"
 	pingPath              = "ping"
 )
 
@@ -105,6 +105,36 @@ func (u URLShortenerTest) Test(t *testing.T) {
 			assert.Equal(t, http.StatusNotFound, response.Code)
 			assertLocation(t, "", response)
 			assertBody(t, "not found", response)
+		})
+
+		t.Run("url is deleted", func(t *testing.T) {
+			const (
+				shortURL = "EwHXdJfB"
+				body     = "<a href=\"https://practicum.yandex.ru/\">Temporary Redirect</a>."
+			)
+			ctx := context.Background()
+			userID := domain.NewUserID()
+			pair := domain.URLPair{
+				ShortURL:    shortURL,
+				OriginalURL: testURL,
+			}
+			urlStore, cleanup := u.CreateDependencies()
+			t.Cleanup(cleanup)
+			err := urlStore.AddURL(ctx, pair, userID)
+			require.NoError(t, err)
+
+			err = urlStore.DeleteUserURLs(ctx, []string{pair.ShortURL}, userID)
+			require.NoError(t, err)
+
+			sut := New(urlStore, baseURL, zap.NewNop())
+			request := newGetRequest(shortURL)
+			response := httptest.NewRecorder()
+
+			sut.ServeHTTP(response, request)
+
+			assert.Equal(t, http.StatusGone, response.Code)
+			assertLocation(t, "", response)
+			assertBody(t, "url is deleted", response)
 		})
 	})
 
@@ -639,12 +669,75 @@ func (u URLShortenerTest) Test(t *testing.T) {
 			urlStore, cleanup := u.CreateDependencies()
 			t.Cleanup(cleanup)
 			sut := New(urlStore, baseURL, zap.NewNop())
-			request := httptest.NewRequest(http.MethodGet, getUserURLsPath, nil)
+			request := httptest.NewRequest(http.MethodGet, userURLsPath, nil)
 			response := httptest.NewRecorder()
 
 			sut.ServeHTTP(response, request)
 
 			assert.Equal(t, http.StatusUnauthorized, response.Code)
+		})
+	})
+
+	t.Run("delete user urls", func(t *testing.T) {
+		t.Run("delete urls shortened by user", func(t *testing.T) {
+			ctx := context.Background()
+			userID := domain.NewUserID()
+			userURLs := []domain.URLPair{
+				{
+					OriginalURL: "http://yandex.ru",
+					ShortURL:    "123",
+				},
+				{
+					OriginalURL: "http://mail.ru",
+					ShortURL:    "456",
+				},
+			}
+			urlStore, cleanup := u.CreateDependencies()
+			t.Cleanup(cleanup)
+			err := urlStore.AddURLs(ctx, userURLs, userID)
+			require.NoError(t, err)
+			sut := New(urlStore, baseURL, zap.NewNop())
+			request := newDeleteUserURLsRequest(t, userURLs, userID)
+			response := httptest.NewRecorder()
+
+			sut.ServeHTTP(response, request)
+
+			assert.Equal(t, http.StatusAccepted, response.Code)
+			pairs, err := urlStore.GetUserURLs(ctx, userID)
+			require.NoError(t, err)
+			assert.Equal(t, 0, len(pairs))
+		})
+
+		t.Run("request content is invalid", func(t *testing.T) {
+			userID := domain.NewUserID()
+			urlStore, cleanup := u.CreateDependencies()
+			t.Cleanup(cleanup)
+			sut := New(urlStore, baseURL, zap.NewNop())
+			request := newDeleteUserURLsInvalidRequest(t, userID)
+			response := httptest.NewRecorder()
+
+			sut.ServeHTTP(response, request)
+
+			assert.Equal(t, http.StatusBadRequest, response.Code)
+		})
+
+		t.Run("failed to delete user urls", func(t *testing.T) {
+			userID := domain.NewUserID()
+			userURLs := []domain.URLPair{}
+			urlStore, cleanup := u.CreateDependencies()
+			t.Cleanup(cleanup)
+			failingURLStore := domain.NewURLStoreDelegate(urlStore)
+			failingURLStore.DeleteUserURLsFunc = func(ctx context.Context, urls []string, userID domain.UserID) error {
+				return errors.New("failed to delete urls")
+			}
+			sut := New(failingURLStore, baseURL, zap.NewNop())
+			request := newDeleteUserURLsRequest(t, userURLs, userID)
+			response := httptest.NewRecorder()
+
+			sut.ServeHTTP(response, request)
+
+			assert.Equal(t, http.StatusInternalServerError, response.Code)
+			assertBody(t, "failed to delete user urls", response)
 		})
 	})
 }
@@ -781,7 +874,44 @@ func newPutRequest(url string) *http.Request {
 
 func newGetUserURLsRequest(t *testing.T, userID domain.UserID) *http.Request {
 	t.Helper()
-	r := httptest.NewRequest(http.MethodGet, getUserURLsPath, nil)
+	r := httptest.NewRequest(http.MethodGet, userURLsPath, nil)
+	a := auth.New(secretKey, tokenExp)
+
+	cookie, err := a.CreateCookie(userID)
+	require.NoError(t, err)
+
+	r.AddCookie(cookie)
+	return r
+}
+
+func newDeleteUserURLsRequest(t *testing.T, userURLs []domain.URLPair, userID domain.UserID) *http.Request {
+	t.Helper()
+
+	shortURLs := make([]string, len(userURLs))
+	for i := 0; i < len(userURLs); i++ {
+		shortURLs[i] = userURLs[i].ShortURL
+	}
+	body, err := json.Marshal(&shortURLs)
+	require.NoError(t, err)
+
+	buf := bytes.NewBuffer(body)
+	r := httptest.NewRequest(http.MethodDelete, userURLsPath, buf)
+	r.Header.Set(contentTypeHeader, applicationJSON)
+	a := auth.New(secretKey, tokenExp)
+
+	cookie, err := a.CreateCookie(userID)
+	require.NoError(t, err)
+
+	r.AddCookie(cookie)
+	return r
+}
+
+func newDeleteUserURLsInvalidRequest(t *testing.T, userID domain.UserID) *http.Request {
+	t.Helper()
+
+	buf := bytes.NewBufferString("[{ Invalid: true ]}")
+	r := httptest.NewRequest(http.MethodDelete, userURLsPath, buf)
+	r.Header.Set(contentTypeHeader, applicationJSON)
 	a := auth.New(secretKey, tokenExp)
 
 	cookie, err := a.CreateCookie(userID)

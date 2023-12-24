@@ -81,10 +81,16 @@ func (u *PostgresURLStore) GetOriginalURL(ctx context.Context, shortURL string) 
 	}
 
 	var originalURL string
-	row := conn.QueryRow(ctx, "SELECT original_url FROM url WHERE short_url=$1", shortURL)
-	err = row.Scan(&originalURL)
+	var isDeleted bool
+	row := conn.QueryRow(ctx, "SELECT original_url, is_deleted FROM url WHERE short_url=$1", shortURL)
+	err = row.Scan(&originalURL, &isDeleted)
+
 	if errors.Is(err, pgx.ErrNoRows) {
 		return "", domain.ErrOriginalURLNotFound
+	}
+
+	if isDeleted {
+		return "", domain.ErrOriginalURLIsDeleted
 	}
 
 	return originalURL, nil
@@ -216,7 +222,8 @@ func (u *PostgresURLStore) GetUserURLs(ctx context.Context, userID domain.UserID
 		return nil, errors.Wrapf(err, op)
 	}
 
-	rows, err := conn.Query(ctx, "SELECT short_url, original_url FROM url WHERE user_id = $1", uuid.UUID(userID))
+	const sql = "SELECT short_url, original_url FROM url WHERE user_id = $1 AND is_deleted = false"
+	rows, err := conn.Query(ctx, sql, uuid.UUID(userID))
 
 	if err != nil {
 		return nil, errors.Wrapf(err, op)
@@ -241,4 +248,43 @@ func (u *PostgresURLStore) GetUserURLs(ctx context.Context, userID domain.UserID
 	}
 
 	return userURLs, nil
+}
+
+func (u *PostgresURLStore) DeleteUserURLs(ctx context.Context, shortURLs []string, userID domain.UserID) error {
+	const op = "delete user URLs"
+	conn, err := u.pool.Acquire(ctx)
+	defer conn.Release()
+
+	if err != nil {
+		return errors.Wrapf(err, op)
+	}
+
+	var txOptions pgx.TxOptions
+	tx, err := conn.BeginTx(ctx, txOptions)
+
+	if err != nil {
+		return errors.Wrapf(err, op)
+	}
+
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	b := &pgx.Batch{}
+
+	for i := 0; i < len(shortURLs); i++ {
+		b.Queue("UPDATE url SET is_deleted = true WHERE short_url = $1 AND user_id = $2", shortURLs[i], uuid.UUID(userID))
+	}
+
+	err = tx.SendBatch(ctx, b).Close()
+
+	if err != nil {
+		return errors.Wrapf(err, op)
+	}
+
+	err = tx.Commit(ctx)
+
+	if err != nil {
+		return errors.Wrapf(err, op)
+	}
+
+	return nil
 }
