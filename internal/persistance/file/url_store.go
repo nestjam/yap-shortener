@@ -8,100 +8,95 @@ import (
 	"sync"
 
 	"github.com/nestjam/yap-shortener/internal/domain"
-	"github.com/nestjam/yap-shortener/internal/persistance/inmemory"
 	"github.com/pkg/errors"
 )
 
 type FileURLStore struct {
 	encoder *json.Encoder
-	s       *inmemory.InmemoryURLStore
-	id      int
+	m       map[string]StoredURL
 	mu      sync.Mutex
 }
 
 type StoredURL struct {
 	ShortURL    string        `json:"short_url"`
 	OriginalURL string        `json:"original_url"`
-	ID          int           `json:"uuid"`
 	UserID      domain.UserID `json:"user_id"`
+	IsDeleted   bool          `json:"is_deleted"`
 }
 
 func New(ctx context.Context, rw io.ReadWriter) (*FileURLStore, error) {
 	const op = "new file storage"
-	records, err := readURLs(rw)
+	m, err := readURLs(rw)
 
 	if err != nil {
 		return nil, errors.Wrap(err, op)
 	}
 
-	s := &inmemory.InmemoryURLStore{}
-	for i := 0; i < len(records); i++ {
-		rec := records[i]
-		pair := domain.URLPair{
-			ShortURL:    rec.ShortURL,
-			OriginalURL: rec.OriginalURL,
-		}
-		err := s.AddURL(ctx, pair, rec.UserID)
-
-		if err != nil {
-			return nil, errors.Wrap(err, op)
-		}
-	}
-
-	return &FileURLStore{
+	store := FileURLStore{
 		encoder: json.NewEncoder(rw),
-		s:       &inmemory.InmemoryURLStore{},
-	}, nil
+		m:       m,
+	}
+	return &store, nil
 }
 
-func readURLs(rw io.ReadWriter) ([]StoredURL, error) {
+func readURLs(rw io.ReadWriter) (map[string]StoredURL, error) {
 	dec := json.NewDecoder(rw)
-	var urls []StoredURL
+	m := make(map[string]StoredURL)
 
 	for dec.More() {
-		var url StoredURL
-		err := dec.Decode(&url)
+		var rec StoredURL
+		err := dec.Decode(&rec)
 
 		if err != nil {
 			return nil, fmt.Errorf("get URLs: %w", err)
 		}
 
-		urls = append(urls, url)
+		if _, ok := m[rec.ShortURL]; !ok {
+			if shortURL, ok := findShortURL(m, rec.OriginalURL); ok {
+				return nil, domain.NewOriginalURLExistsError(shortURL, nil)
+			}
+		}
+
+		m[rec.ShortURL] = rec
 	}
 
-	return urls, nil
+	return m, nil
 }
 
 func (u *FileURLStore) GetOriginalURL(ctx context.Context, shortURL string) (string, error) {
-	const op = "get original URL"
-	originalURL, err := u.s.GetOriginalURL(ctx, shortURL)
+	u.mu.Lock()
+	defer u.mu.Unlock()
 
-	if err != nil {
-		return "", errors.Wrap(err, op)
+	rec, ok := u.m[shortURL]
+
+	if !ok {
+		return "", domain.ErrOriginalURLNotFound
 	}
 
-	return originalURL, nil
+	if rec.IsDeleted {
+		return "", domain.ErrOriginalURLIsDeleted
+	}
+
+	return rec.OriginalURL, nil
 }
 
 func (u *FileURLStore) AddURL(ctx context.Context, pair domain.URLPair, userID domain.UserID) error {
 	const op = "add URL"
-	err := u.s.AddURL(ctx, pair, userID)
-
-	if err != nil {
-		return errors.Wrap(err, op)
-	}
-
 	u.mu.Lock()
 	defer u.mu.Unlock()
 
-	url := StoredURL{
-		ID:          u.id,
+	if shortURL, ok := findShortURL(u.m, pair.OriginalURL); ok {
+		return domain.NewOriginalURLExistsError(shortURL, nil)
+	}
+
+	rec := StoredURL{
 		ShortURL:    pair.ShortURL,
 		OriginalURL: pair.OriginalURL,
 		UserID:      userID,
 	}
-	err = u.encoder.Encode(url)
-	u.id++
+	u.m[rec.ShortURL] = rec
+
+	err := u.encoder.Encode(rec)
 
 	if err != nil {
 		return errors.Wrap(err, op)
@@ -110,27 +105,34 @@ func (u *FileURLStore) AddURL(ctx context.Context, pair domain.URLPair, userID d
 	return nil
 }
 
-func (u *FileURLStore) AddURLs(ctx context.Context, pairs []domain.URLPair, userID domain.UserID) error {
-	_ = u.s.AddURLs(ctx, pairs, userID)
+func findShortURL(m map[string]StoredURL, originalURL string) (string, bool) {
+	for k, v := range m {
+		if v.OriginalURL == originalURL {
+			return k, true
+		}
+	}
 
+	return "", false
+}
+
+func (u *FileURLStore) AddURLs(ctx context.Context, pairs []domain.URLPair, userID domain.UserID) error {
 	u.mu.Lock()
 	defer u.mu.Unlock()
 
-	for i := 0; i < len(pairs); i++ {
-		url := StoredURL{
-			ID:          u.id,
-			ShortURL:    pairs[i].ShortURL,
-			OriginalURL: pairs[i].OriginalURL,
+	for _, url := range pairs {
+		rec := StoredURL{
+			ShortURL:    url.ShortURL,
+			OriginalURL: url.OriginalURL,
 			UserID:      userID,
 		}
-		err := u.encoder.Encode(url)
-		u.id++
+		u.m[rec.ShortURL] = rec
+
+		err := u.encoder.Encode(rec)
 
 		if err != nil {
 			return errors.Wrap(err, "failed to add URLs")
 		}
 	}
-
 	return nil
 }
 
@@ -139,11 +141,48 @@ func (u *FileURLStore) IsAvailable(ctx context.Context) bool {
 }
 
 func (u *FileURLStore) GetUserURLs(ctx context.Context, userID domain.UserID) ([]domain.URLPair, error) {
-	urls, _ := u.s.GetUserURLs(ctx, userID)
-	return urls, nil
+	u.mu.Lock()
+	defer u.mu.Unlock()
+
+	userURLs := []domain.URLPair{}
+
+	for k, v := range u.m {
+		if v.UserID != userID || v.IsDeleted {
+			continue
+		}
+
+		url := domain.URLPair{
+			ShortURL:    k,
+			OriginalURL: v.OriginalURL,
+		}
+		userURLs = append(userURLs, url)
+	}
+
+	return userURLs, nil
 }
 
 func (u *FileURLStore) DeleteUserURLs(ctx context.Context, shortURLs []string, userID domain.UserID) error {
-	_ = u.s.DeleteUserURLs(ctx, shortURLs, userID)
+	u.mu.Lock()
+	defer u.mu.Unlock()
+
+	for _, shortURL := range shortURLs {
+		rec, ok := u.m[shortURL]
+
+		if !ok {
+			continue
+		}
+
+		if rec.UserID == userID {
+			rec.IsDeleted = true
+			u.m[shortURL] = rec
+
+			err := u.encoder.Encode(rec)
+
+			if err != nil {
+				return errors.Wrap(err, "failed write url")
+			}
+		}
+	}
+
 	return nil
 }

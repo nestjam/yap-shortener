@@ -38,26 +38,49 @@ func TestFileURLStore(t *testing.T) {
 func TestNew(t *testing.T) {
 	t.Run("data contains records with same original url", func(t *testing.T) {
 		const originalURL = "http://example.com"
-		var (
-			urls = []StoredURL{
-				{
-					ID:          0,
-					ShortURL:    "abc",
-					OriginalURL: originalURL,
-				},
-				{
-					ID:          1,
-					ShortURL:    "123",
-					OriginalURL: originalURL,
-				},
-			}
-			rw = getReadWriter(t, urls)
-		)
+		urls := []StoredURL{
+			{
+				ShortURL:    "abc",
+				OriginalURL: originalURL,
+			},
+			{
+				ShortURL:    "123",
+				OriginalURL: originalURL,
+			},
+		}
+		rw := getReadWriter(t, urls)
 
 		_, err := New(context.Background(), rw)
 
 		var want *domain.OriginalURLExistsError
 		require.ErrorAs(t, err, &want)
+	})
+
+	t.Run("deleted urls", func(t *testing.T) {
+		const originalURL = "http://example.com"
+		ctx := context.Background()
+		userID := domain.NewUserID()
+		urls := []StoredURL{
+			{
+				ShortURL:    "abc",
+				OriginalURL: originalURL,
+				UserID:      userID,
+			},
+			{
+				ShortURL:    "abc",
+				OriginalURL: originalURL,
+				UserID:      userID,
+				IsDeleted:   true,
+			},
+		}
+		rw := getReadWriter(t, urls)
+
+		store, err := New(ctx, rw)
+		require.NoError(t, err)
+
+		userURLs, err := store.GetUserURLs(ctx, userID)
+		require.NoError(t, err)
+		assert.Empty(t, userURLs)
 	})
 }
 
@@ -80,7 +103,6 @@ func TestAddURL(t *testing.T) {
 		ctx := context.Background()
 		userID := domain.NewUserID()
 		want := StoredURL{
-			ID:          0,
 			ShortURL:    shortURL,
 			OriginalURL: originalURL,
 			UserID:      userID,
@@ -115,13 +137,11 @@ func TestAddURLs(t *testing.T) {
 			}
 			want = []StoredURL{
 				{
-					ID:          0,
 					ShortURL:    urls[0].ShortURL,
 					OriginalURL: urls[0].OriginalURL,
 					UserID:      userID,
 				},
 				{
-					ID:          1,
 					ShortURL:    urls[1].ShortURL,
 					OriginalURL: urls[1].OriginalURL,
 					UserID:      userID,
