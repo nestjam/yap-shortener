@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/nestjam/yap-shortener/internal/domain"
 	"github.com/nestjam/yap-shortener/internal/persistance/inmemory"
@@ -37,11 +38,10 @@ func TestRemoveUserURLs(t *testing.T) {
 		}
 		sut.Delete(shortURLs, userID)
 
-		go func() {
-			<-doneCh
-			userURLs, err := store.GetUserURLs(ctx, userID)
-			require.NoError(t, err)
-			assert.Empty(t, userURLs)
-		}()
+		time.Sleep(10 * time.Millisecond)
+
+		userURLs, err := store.GetUserURLs(ctx, userID)
+		require.NoError(t, err)
+		assert.Empty(t, userURLs)
 	})
 }
