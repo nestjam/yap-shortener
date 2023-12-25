@@ -32,7 +32,8 @@ func main() {
 	doneCh := make(chan struct{})
 	defer close(doneCh)
 
-	server := server.New(store, config.BaseURL, logger,
+	server := server.New(store, config.BaseURL,
+		server.WithLogger(logger),
 		server.WithShortenURLsMaxCount(shortenURLsMaxCount),
 		server.WithURLsRemover(server.NewURLRemover(ctx, doneCh, store)))
 	listenAndServe(config.ServerAddress, server, logger)

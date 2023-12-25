@@ -20,7 +20,6 @@ import (
 	"github.com/nestjam/yap-shortener/internal/persistance/inmemory"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
 )
 
 const (
@@ -68,7 +67,7 @@ func (u URLShortenerTest) Test(t *testing.T) {
 			t.Cleanup(cleanup)
 			err := urlStore.AddURL(context.Background(), pair, userID)
 			require.NoError(t, err)
-			sut := New(urlStore, baseURL, zap.NewNop())
+			sut := New(urlStore, baseURL)
 			request := newGetRequest(shortURL)
 			response := httptest.NewRecorder()
 
@@ -84,7 +83,7 @@ func (u URLShortenerTest) Test(t *testing.T) {
 			response := httptest.NewRecorder()
 			urlStore, cleanup := u.CreateDependencies()
 			t.Cleanup(cleanup)
-			sut := New(urlStore, baseURL, zap.NewNop())
+			sut := New(urlStore, baseURL)
 
 			sut.ServeHTTP(response, request)
 
@@ -96,7 +95,7 @@ func (u URLShortenerTest) Test(t *testing.T) {
 		t.Run("url not found", func(t *testing.T) {
 			urlStore, cleanup := u.CreateDependencies()
 			t.Cleanup(cleanup)
-			sut := New(urlStore, baseURL, zap.NewNop())
+			sut := New(urlStore, baseURL)
 			request := newGetRequest("EwHXdJfB")
 			response := httptest.NewRecorder()
 
@@ -126,7 +125,7 @@ func (u URLShortenerTest) Test(t *testing.T) {
 			err = urlStore.DeleteUserURLs(ctx, []string{pair.ShortURL}, userID)
 			require.NoError(t, err)
 
-			sut := New(urlStore, baseURL, zap.NewNop())
+			sut := New(urlStore, baseURL)
 			request := newGetRequest(shortURL)
 			response := httptest.NewRecorder()
 
@@ -142,7 +141,7 @@ func (u URLShortenerTest) Test(t *testing.T) {
 		t.Run("shorten url", func(t *testing.T) {
 			urlStore, cleanup := u.CreateDependencies()
 			t.Cleanup(cleanup)
-			sut := New(urlStore, baseURL, zap.NewNop())
+			sut := New(urlStore, baseURL)
 			request := newShortenRequest(testURL)
 			response := httptest.NewRecorder()
 
@@ -155,7 +154,7 @@ func (u URLShortenerTest) Test(t *testing.T) {
 		t.Run("content type is not text-plain", func(t *testing.T) {
 			urlStore, cleanup := u.CreateDependencies()
 			t.Cleanup(cleanup)
-			sut := New(urlStore, baseURL, zap.NewNop())
+			sut := New(urlStore, baseURL)
 			request := newShortenRequest(testURL)
 			request.Header.Set(contentTypeHeader, "application/xml")
 			response := httptest.NewRecorder()
@@ -169,7 +168,7 @@ func (u URLShortenerTest) Test(t *testing.T) {
 		t.Run("shorten same url twice", func(t *testing.T) {
 			urlStore, cleanup := u.CreateDependencies()
 			t.Cleanup(cleanup)
-			sut := New(urlStore, baseURL, zap.NewNop())
+			sut := New(urlStore, baseURL)
 
 			//1
 			request := newShortenRequest(testURL)
@@ -193,7 +192,7 @@ func (u URLShortenerTest) Test(t *testing.T) {
 		t.Run("url is empty", func(t *testing.T) {
 			urlStore, cleanup := u.CreateDependencies()
 			t.Cleanup(cleanup)
-			sut := New(urlStore, baseURL, zap.NewNop())
+			sut := New(urlStore, baseURL)
 			request := newShortenRequest("")
 			response := httptest.NewRecorder()
 
@@ -206,7 +205,7 @@ func (u URLShortenerTest) Test(t *testing.T) {
 		t.Run("client accepts br and gzip encodings", func(t *testing.T) {
 			urlStore, cleanup := u.CreateDependencies()
 			t.Cleanup(cleanup)
-			sut := New(urlStore, baseURL, zap.NewNop())
+			sut := New(urlStore, baseURL)
 			request := newShortenRequest(testURL)
 			request.Header.Set(acceptEncodingHeader, "br, "+gzipEncoding)
 			response := httptest.NewRecorder()
@@ -222,7 +221,7 @@ func (u URLShortenerTest) Test(t *testing.T) {
 		t.Run("client sends content type x-gzip", func(t *testing.T) {
 			urlStore, cleanup := u.CreateDependencies()
 			t.Cleanup(cleanup)
-			sut := New(urlStore, baseURL, zap.NewNop())
+			sut := New(urlStore, baseURL)
 			request := newEncodedShortenRequest(t, testURL)
 			response := httptest.NewRecorder()
 
@@ -240,7 +239,7 @@ func (u URLShortenerTest) Test(t *testing.T) {
 			failingURLStore.AddURLFunc = func(ctx context.Context, pair domain.URLPair, userID domain.UserID) error {
 				return errors.New("failed to add url")
 			}
-			sut := New(failingURLStore, baseURL, zap.NewNop())
+			sut := New(failingURLStore, baseURL)
 			request := newShortenRequest(testURL)
 			response := httptest.NewRecorder()
 
@@ -254,7 +253,7 @@ func (u URLShortenerTest) Test(t *testing.T) {
 		t.Run("shorten url", func(t *testing.T) {
 			urlStore, cleanup := u.CreateDependencies()
 			t.Cleanup(cleanup)
-			sut := New(urlStore, baseURL, zap.NewNop())
+			sut := New(urlStore, baseURL)
 			request := newShortenAPIRequest(t, testURL)
 			response := httptest.NewRecorder()
 
@@ -271,7 +270,7 @@ func (u URLShortenerTest) Test(t *testing.T) {
 		t.Run("content type is not application-json", func(t *testing.T) {
 			urlStore, cleanup := u.CreateDependencies()
 			t.Cleanup(cleanup)
-			sut := New(urlStore, baseURL, zap.NewNop())
+			sut := New(urlStore, baseURL)
 			request := newShortenAPIRequest(t, testURL)
 			request.Header.Set(contentTypeHeader, textPlain)
 			response := httptest.NewRecorder()
@@ -284,7 +283,7 @@ func (u URLShortenerTest) Test(t *testing.T) {
 		t.Run("shorten same url twice", func(t *testing.T) {
 			urlStore, cleanup := u.CreateDependencies()
 			t.Cleanup(cleanup)
-			sut := New(urlStore, baseURL, zap.NewNop())
+			sut := New(urlStore, baseURL)
 
 			//1
 			request := newShortenAPIRequest(t, testURL)
@@ -310,7 +309,7 @@ func (u URLShortenerTest) Test(t *testing.T) {
 		t.Run("url is empty", func(t *testing.T) {
 			urlStore, cleanup := u.CreateDependencies()
 			t.Cleanup(cleanup)
-			sut := New(urlStore, baseURL, zap.NewNop())
+			sut := New(urlStore, baseURL)
 			request := newShortenAPIRequest(t, "")
 			response := httptest.NewRecorder()
 
@@ -323,7 +322,7 @@ func (u URLShortenerTest) Test(t *testing.T) {
 		t.Run("request json is invalid", func(t *testing.T) {
 			urlStore, cleanup := u.CreateDependencies()
 			t.Cleanup(cleanup)
-			sut := New(urlStore, baseURL, zap.NewNop())
+			sut := New(urlStore, baseURL)
 			request := httptest.NewRequest(http.MethodPost, "/api/shorten", strings.NewReader("{{]}"))
 			request.Header.Set(contentTypeHeader, applicationJSON)
 			response := httptest.NewRecorder()
@@ -337,7 +336,7 @@ func (u URLShortenerTest) Test(t *testing.T) {
 		t.Run("client accepts br and gzip encodings", func(t *testing.T) {
 			urlStore, cleanup := u.CreateDependencies()
 			t.Cleanup(cleanup)
-			sut := New(urlStore, baseURL, zap.NewNop())
+			sut := New(urlStore, baseURL)
 			request := newShortenAPIRequest(t, testURL)
 			request.Header.Set(acceptEncodingHeader, "br, "+gzipEncoding)
 			response := httptest.NewRecorder()
@@ -353,7 +352,7 @@ func (u URLShortenerTest) Test(t *testing.T) {
 		t.Run("client does not accept encoding", func(t *testing.T) {
 			urlStore, cleanup := u.CreateDependencies()
 			t.Cleanup(cleanup)
-			sut := New(urlStore, baseURL, zap.NewNop())
+			sut := New(urlStore, baseURL)
 			request := newShortenAPIRequest(t, testURL)
 			response := httptest.NewRecorder()
 
@@ -365,7 +364,7 @@ func (u URLShortenerTest) Test(t *testing.T) {
 		t.Run("client sends encoded content", func(t *testing.T) {
 			urlStore, cleanup := u.CreateDependencies()
 			t.Cleanup(cleanup)
-			sut := New(urlStore, baseURL, zap.NewNop())
+			sut := New(urlStore, baseURL)
 			request := newEncodedShortenAPIRequest(t, testURL)
 			response := httptest.NewRecorder()
 
@@ -383,7 +382,7 @@ func (u URLShortenerTest) Test(t *testing.T) {
 			failingURLStore.AddURLFunc = func(ctx context.Context, pair domain.URLPair, userID domain.UserID) error {
 				return errors.New("failed to add url")
 			}
-			sut := New(failingURLStore, baseURL, zap.NewNop())
+			sut := New(failingURLStore, baseURL)
 			request := newEncodedShortenAPIRequest(t, testURL)
 			response := httptest.NewRecorder()
 
@@ -397,7 +396,7 @@ func (u URLShortenerTest) Test(t *testing.T) {
 		want := http.StatusMethodNotAllowed
 		urlStore, cleanup := u.CreateDependencies()
 		t.Cleanup(cleanup)
-		sut := New(urlStore, baseURL, zap.NewNop())
+		sut := New(urlStore, baseURL)
 		request := newPutRequest(testURL)
 		response := httptest.NewRecorder()
 
@@ -410,7 +409,7 @@ func (u URLShortenerTest) Test(t *testing.T) {
 		t.Run("service is avaiable", func(t *testing.T) {
 			urlStore, cleanup := u.CreateDependencies()
 			t.Cleanup(cleanup)
-			sut := New(urlStore, baseURL, zap.NewNop())
+			sut := New(urlStore, baseURL)
 			request := newPingRequest()
 			response := httptest.NewRecorder()
 
@@ -426,7 +425,7 @@ func (u URLShortenerTest) Test(t *testing.T) {
 			unavailableURLStore.IsAvailableFunc = func(ctx context.Context) bool {
 				return false
 			}
-			sut := New(unavailableURLStore, baseURL, zap.NewNop())
+			sut := New(unavailableURLStore, baseURL)
 			request := newPingRequest()
 			response := httptest.NewRecorder()
 
@@ -440,7 +439,7 @@ func (u URLShortenerTest) Test(t *testing.T) {
 		t.Run("shorten urls", func(t *testing.T) {
 			urlStore, cleanup := u.CreateDependencies()
 			t.Cleanup(cleanup)
-			sut := New(urlStore, baseURL, zap.NewNop())
+			sut := New(urlStore, baseURL)
 			originalURLs := newBatch([]string{"https://practicum.yandex.ru/", "https://google.com/"})
 			request := newShortenURLsAPIRequest(t, originalURLs)
 			response := httptest.NewRecorder()
@@ -455,7 +454,7 @@ func (u URLShortenerTest) Test(t *testing.T) {
 		t.Run("content type is not application-json", func(t *testing.T) {
 			urlStore, cleanup := u.CreateDependencies()
 			t.Cleanup(cleanup)
-			sut := New(urlStore, baseURL, zap.NewNop())
+			sut := New(urlStore, baseURL)
 			originalURLs := newBatch([]string{testURL})
 			request := newShortenURLsAPIRequest(t, originalURLs)
 			request.Header.Set(contentTypeHeader, textPlain)
@@ -469,7 +468,7 @@ func (u URLShortenerTest) Test(t *testing.T) {
 		t.Run("shorten same url twice", func(t *testing.T) {
 			urlStore, cleanup := u.CreateDependencies()
 			t.Cleanup(cleanup)
-			sut := New(urlStore, baseURL, zap.NewNop())
+			sut := New(urlStore, baseURL)
 			originalURLs := newBatch([]string{testURL})
 
 			//1
@@ -494,7 +493,7 @@ func (u URLShortenerTest) Test(t *testing.T) {
 		t.Run("batch is empty", func(t *testing.T) {
 			urlStore, cleanup := u.CreateDependencies()
 			t.Cleanup(cleanup)
-			sut := New(urlStore, baseURL, zap.NewNop())
+			sut := New(urlStore, baseURL)
 			originalURLs := newBatch([]string{})
 			request := newShortenURLsAPIRequest(t, originalURLs)
 			response := httptest.NewRecorder()
@@ -508,7 +507,7 @@ func (u URLShortenerTest) Test(t *testing.T) {
 		t.Run("url is empty", func(t *testing.T) {
 			urlStore, cleanup := u.CreateDependencies()
 			t.Cleanup(cleanup)
-			sut := New(urlStore, baseURL, zap.NewNop())
+			sut := New(urlStore, baseURL)
 			originalURLs := newBatch([]string{""})
 			request := newShortenURLsAPIRequest(t, originalURLs)
 			response := httptest.NewRecorder()
@@ -522,7 +521,7 @@ func (u URLShortenerTest) Test(t *testing.T) {
 		t.Run("request json is invalid", func(t *testing.T) {
 			urlStore, cleanup := u.CreateDependencies()
 			t.Cleanup(cleanup)
-			sut := New(urlStore, baseURL, zap.NewNop())
+			sut := New(urlStore, baseURL)
 			request := httptest.NewRequest(http.MethodPost, "/api/shorten/batch", strings.NewReader("{{]}"))
 			request.Header.Set(contentTypeHeader, applicationJSON)
 			response := httptest.NewRecorder()
@@ -536,7 +535,7 @@ func (u URLShortenerTest) Test(t *testing.T) {
 		t.Run("client accepts br and gzip encodings", func(t *testing.T) {
 			urlStore, cleanup := u.CreateDependencies()
 			t.Cleanup(cleanup)
-			sut := New(urlStore, baseURL, zap.NewNop())
+			sut := New(urlStore, baseURL)
 			originalURLs := newBatch([]string{testURL})
 			request := newShortenURLsAPIRequest(t, originalURLs)
 			request.Header.Set(acceptEncodingHeader, "br, "+gzipEncoding)
@@ -552,7 +551,7 @@ func (u URLShortenerTest) Test(t *testing.T) {
 		t.Run("client does not accept encoding", func(t *testing.T) {
 			urlStore, cleanup := u.CreateDependencies()
 			t.Cleanup(cleanup)
-			sut := New(urlStore, baseURL, zap.NewNop())
+			sut := New(urlStore, baseURL)
 			originalURLs := newBatch([]string{testURL})
 			request := newShortenURLsAPIRequest(t, originalURLs)
 			response := httptest.NewRecorder()
@@ -565,7 +564,7 @@ func (u URLShortenerTest) Test(t *testing.T) {
 		t.Run("client sends encoded content", func(t *testing.T) {
 			urlStore, cleanup := u.CreateDependencies()
 			t.Cleanup(cleanup)
-			sut := New(urlStore, baseURL, zap.NewNop())
+			sut := New(urlStore, baseURL)
 			originalURLs := newBatch([]string{testURL})
 			request := newShortenURLsAPIRequest(t, originalURLs)
 			response := httptest.NewRecorder()
@@ -583,7 +582,7 @@ func (u URLShortenerTest) Test(t *testing.T) {
 			failingURLStore.AddURLsFunc = func(ctx context.Context, pairs []domain.URLPair, userID domain.UserID) error {
 				return errors.New("failed to add url")
 			}
-			sut := New(failingURLStore, baseURL, zap.NewNop())
+			sut := New(failingURLStore, baseURL)
 			originalURLs := newBatch([]string{testURL})
 			request := newShortenURLsAPIRequest(t, originalURLs)
 			response := httptest.NewRecorder()
@@ -596,7 +595,7 @@ func (u URLShortenerTest) Test(t *testing.T) {
 		t.Run("request posts for too many urls", func(t *testing.T) {
 			urlStore, cleanup := u.CreateDependencies()
 			t.Cleanup(cleanup)
-			sut := New(urlStore, baseURL, zap.NewNop(), WithShortenURLsMaxCount(2))
+			sut := New(urlStore, baseURL, WithShortenURLsMaxCount(2))
 			urls := []string{
 				"foo.net",
 				"bar.net",
@@ -631,7 +630,7 @@ func (u URLShortenerTest) Test(t *testing.T) {
 			t.Cleanup(cleanup)
 			err := urlStore.AddURLs(context.Background(), userURLs, userID)
 			require.NoError(t, err)
-			sut := New(urlStore, baseURL, zap.NewNop())
+			sut := New(urlStore, baseURL)
 			request := newGetUserURLsRequest(t, userID)
 			response := httptest.NewRecorder()
 
@@ -654,7 +653,7 @@ func (u URLShortenerTest) Test(t *testing.T) {
 			t.Cleanup(cleanup)
 			err := urlStore.AddURLs(context.Background(), userURLs, otherUserID)
 			require.NoError(t, err)
-			sut := New(urlStore, baseURL, zap.NewNop())
+			sut := New(urlStore, baseURL)
 			userID := domain.NewUserID()
 			request := newGetUserURLsRequest(t, userID)
 			response := httptest.NewRecorder()
@@ -668,7 +667,7 @@ func (u URLShortenerTest) Test(t *testing.T) {
 		t.Run("user is not authorized", func(t *testing.T) {
 			urlStore, cleanup := u.CreateDependencies()
 			t.Cleanup(cleanup)
-			sut := New(urlStore, baseURL, zap.NewNop())
+			sut := New(urlStore, baseURL)
 			request := httptest.NewRequest(http.MethodGet, userURLsPath, nil)
 			response := httptest.NewRecorder()
 
@@ -696,7 +695,7 @@ func (u URLShortenerTest) Test(t *testing.T) {
 			t.Cleanup(cleanup)
 			err := urlStore.AddURLs(ctx, userURLs, userID)
 			require.NoError(t, err)
-			sut := New(urlStore, baseURL, zap.NewNop())
+			sut := New(urlStore, baseURL)
 			request := newDeleteUserURLsRequest(t, userURLs, userID)
 			response := httptest.NewRecorder()
 
@@ -712,7 +711,7 @@ func (u URLShortenerTest) Test(t *testing.T) {
 			userID := domain.NewUserID()
 			urlStore, cleanup := u.CreateDependencies()
 			t.Cleanup(cleanup)
-			sut := New(urlStore, baseURL, zap.NewNop())
+			sut := New(urlStore, baseURL)
 			request := newDeleteUserURLsInvalidRequest(t, userID)
 			response := httptest.NewRecorder()
 
@@ -730,7 +729,7 @@ func (u URLShortenerTest) Test(t *testing.T) {
 			failingURLStore.DeleteUserURLsFunc = func(ctx context.Context, urls []string, userID domain.UserID) error {
 				return errors.New("failed to delete urls")
 			}
-			sut := New(failingURLStore, baseURL, zap.NewNop())
+			sut := New(failingURLStore, baseURL)
 			request := newDeleteUserURLsRequest(t, userURLs, userID)
 			response := httptest.NewRecorder()
 

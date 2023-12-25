@@ -38,6 +38,7 @@ const (
 )
 
 type Server struct {
+	logger              *zap.Logger
 	urlRemover          *URLRemover
 	store               domain.URLStore
 	router              chi.Router
@@ -70,12 +71,13 @@ type UserURL struct {
 
 type Option func(*Server)
 
-func New(store domain.URLStore, baseURL string, logger *zap.Logger, options ...Option) *Server {
+func New(store domain.URLStore, baseURL string, options ...Option) *Server {
 	r := chi.NewRouter()
 	s := &Server{
 		store:   store,
 		router:  r,
 		baseURL: baseURL,
+		logger:  zap.NewNop(),
 	}
 
 	for _, opt := range options {
@@ -85,7 +87,7 @@ func New(store domain.URLStore, baseURL string, logger *zap.Logger, options ...O
 	authorizer := auth.New(secretKey, tokenExp)
 	const apiUserURLsPath = "/api/user/urls"
 
-	r.Use(middleware.ResponseLogger(logger))
+	r.Use(middleware.ResponseLogger(s.logger))
 
 	r.Group(func(r chi.Router) {
 		r.Get("/ping", s.ping)
@@ -401,6 +403,12 @@ func notFound(w http.ResponseWriter, err string) {
 
 func internalError(w http.ResponseWriter, err string) {
 	http.Error(w, err, http.StatusInternalServerError)
+}
+
+func WithLogger(logger *zap.Logger) Option {
+	return func(s *Server) {
+		s.logger = logger
+	}
 }
 
 func WithShortenURLsMaxCount(count int) Option {
