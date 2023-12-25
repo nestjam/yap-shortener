@@ -11,8 +11,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestRemoveUserURLs(t *testing.T) {
-	t.Run("delete urls from single channel", func(t *testing.T) {
+func TestDeleteURLs(t *testing.T) {
+	t.Run("delete urls", func(t *testing.T) {
 		ctx := context.Background()
 		store := inmemory.New()
 		userID := domain.NewUserID()
@@ -36,12 +36,25 @@ func TestRemoveUserURLs(t *testing.T) {
 			urls[0].ShortURL,
 			urls[1].ShortURL,
 		}
-		sut.Delete(shortURLs, userID)
+		err = sut.DeleteURLs(shortURLs, userID)
+		require.NoError(t, err)
 
 		time.Sleep(10 * time.Millisecond)
 
 		userURLs, err := store.GetUserURLs(ctx, userID)
 		require.NoError(t, err)
 		assert.Empty(t, userURLs)
+	})
+
+	t.Run("error on delete urls after closing", func(t *testing.T) {
+		ctx := context.Background()
+		store := inmemory.New()
+		userID := domain.NewUserID()
+		doneCh := make(chan struct{})
+		sut := NewURLRemover(ctx, doneCh, store)
+		close(doneCh)
+
+		err := sut.DeleteURLs([]string{"abc"}, userID)
+		assert.NotNil(t, err)
 	})
 }

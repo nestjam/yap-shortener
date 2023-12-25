@@ -366,14 +366,14 @@ func (s *Server) deleteUserURLs(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if s.urlRemover != nil {
-		s.urlRemover.Delete(shortURLs, user.ID)
+		err = s.urlRemover.DeleteURLs(shortURLs, user.ID)
 	} else {
 		err = s.store.DeleteUserURLs(ctx, shortURLs, user.ID)
+	}
 
-		if err != nil {
-			internalError(w, "failed to delete user urls")
-			return
-		}
+	if err != nil {
+		internalError(w, "failed to delete user urls")
+		return
 	}
 
 	w.WriteHeader(http.StatusAccepted)

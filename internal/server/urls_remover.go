@@ -2,24 +2,25 @@ package server
 
 import (
 	"context"
+	"errors"
 
 	"github.com/nestjam/yap-shortener/internal/domain"
 )
 
-type RemovingURLs struct {
-	ShortURLs []string
-	UserID    domain.UserID
+type deletingURLs struct {
+	shortURLs []string
+	userID    domain.UserID
 }
 
 type URLRemover struct {
-	finalCh chan RemovingURLs
-	doneCh  <-chan struct{}
+	deleteCh chan deletingURLs
+	doneCh   <-chan struct{}
 }
 
 func NewURLRemover(ctx context.Context, doneCh <-chan struct{}, store domain.URLStore) *URLRemover {
 	r := &URLRemover{
-		finalCh: make(chan RemovingURLs),
-		doneCh:  doneCh,
+		deleteCh: make(chan deletingURLs),
+		doneCh:   doneCh,
 	}
 
 	go func() {
@@ -27,11 +28,8 @@ func NewURLRemover(ctx context.Context, doneCh <-chan struct{}, store domain.URL
 			select {
 			case <-r.doneCh:
 				return
-			case val, ok := <-r.finalCh:
-				if !ok {
-					return
-				}
-				_ = store.DeleteUserURLs(ctx, val.ShortURLs, val.UserID)
+			case val := <-r.deleteCh:
+				_ = store.DeleteUserURLs(ctx, val.shortURLs, val.userID)
 			}
 		}
 	}()
@@ -39,15 +37,20 @@ func NewURLRemover(ctx context.Context, doneCh <-chan struct{}, store domain.URL
 	return r
 }
 
-func (r *URLRemover) Delete(shortURLs []string, userID domain.UserID) {
+func (r *URLRemover) DeleteURLs(shortURLs []string, userID domain.UserID) error {
+	select {
+	case <-r.doneCh:
+		return errors.New("channel is closed")
+	default:
+	}
+
 	go func() {
-		for {
-			select {
-			case <-r.doneCh:
-				return
-			default:
-				r.finalCh <- RemovingURLs{ShortURLs: shortURLs, UserID: userID}
-			}
+		urls := deletingURLs{
+			shortURLs: shortURLs,
+			userID:    userID,
 		}
+		r.deleteCh <- urls
 	}()
+
+	return nil
 }
