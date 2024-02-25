@@ -5,6 +5,7 @@ import (
 	"errors"
 
 	"github.com/nestjam/yap-shortener/internal/domain"
+	"go.uber.org/zap"
 )
 
 type deletingURLs struct {
@@ -17,7 +18,7 @@ type URLRemover struct {
 	doneCh   <-chan struct{}
 }
 
-func NewURLRemover(ctx context.Context, doneCh <-chan struct{}, store domain.URLStore) *URLRemover {
+func NewURLRemover(ctx context.Context, doneCh <-chan struct{}, store domain.URLStore, log *zap.Logger) *URLRemover {
 	r := &URLRemover{
 		deleteCh: make(chan deletingURLs),
 		doneCh:   doneCh,
@@ -29,7 +30,8 @@ func NewURLRemover(ctx context.Context, doneCh <-chan struct{}, store domain.URL
 			case <-r.doneCh:
 				return
 			case val := <-r.deleteCh:
-				_ = store.DeleteUserURLs(ctx, val.shortURLs, val.userID)
+				err := store.DeleteUserURLs(ctx, val.shortURLs, val.userID)
+				log.Error(err.Error())
 			}
 		}
 	}()

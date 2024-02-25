@@ -32,10 +32,12 @@ func main() {
 	doneCh := make(chan struct{})
 	defer close(doneCh)
 
+	urlRemoved := server.NewURLRemover(ctx, doneCh, store, logger)
+
 	server := server.New(store, config.BaseURL,
 		server.WithLogger(logger),
 		server.WithShortenURLsMaxCount(shortenURLsMaxCount),
-		server.WithURLsRemover(server.NewURLRemover(ctx, doneCh, store)))
+		server.WithURLsRemover(urlRemoved))
 	listenAndServe(config.ServerAddress, server, logger)
 }
 

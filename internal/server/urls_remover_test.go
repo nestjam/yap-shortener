@@ -9,6 +9,7 @@ import (
 	"github.com/nestjam/yap-shortener/internal/persistance/inmemory"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
 )
 
 func TestDeleteURLs(t *testing.T) {
@@ -18,7 +19,7 @@ func TestDeleteURLs(t *testing.T) {
 		userID := domain.NewUserID()
 		doneCh := make(chan struct{})
 		defer close(doneCh)
-		sut := NewURLRemover(ctx, doneCh, store)
+		sut := NewURLRemover(ctx, doneCh, store, zap.NewNop())
 		urls := []domain.URLPair{
 			{
 				OriginalURL: "http://yandex.ru",
@@ -51,7 +52,7 @@ func TestDeleteURLs(t *testing.T) {
 		store := inmemory.New()
 		userID := domain.NewUserID()
 		doneCh := make(chan struct{})
-		sut := NewURLRemover(ctx, doneCh, store)
+		sut := NewURLRemover(ctx, doneCh, store, zap.NewNop())
 		close(doneCh)
 
 		err := sut.DeleteURLs([]string{"abc"}, userID)
