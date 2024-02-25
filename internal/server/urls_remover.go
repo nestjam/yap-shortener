@@ -31,7 +31,9 @@ func NewURLRemover(ctx context.Context, doneCh <-chan struct{}, store domain.URL
 				return
 			case val := <-r.deleteCh:
 				err := store.DeleteUserURLs(ctx, val.shortURLs, val.userID)
-				log.Error(err.Error())
+				if err != nil {
+					log.Error(err.Error())
+				}
 			}
 		}
 	}()
