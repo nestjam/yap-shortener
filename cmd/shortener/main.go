@@ -26,10 +26,18 @@ func main() {
 	defer tearDownLogger()
 
 	ctx := context.Background()
-	storage, tearDownStorage := factory.NewStorage(ctx, config, logger)
+	store, tearDownStorage := factory.NewStorage(ctx, config, logger)
 	defer tearDownStorage()
 
-	server := server.New(storage, config.BaseURL, logger, server.WithShortenURLsMaxCount(shortenURLsMaxCount))
+	doneCh := make(chan struct{})
+	defer close(doneCh)
+
+	urlRemoved := server.NewURLRemover(ctx, doneCh, store, logger)
+
+	server := server.New(store, config.BaseURL,
+		server.WithLogger(logger),
+		server.WithShortenURLsMaxCount(shortenURLsMaxCount),
+		server.WithURLsRemover(urlRemoved))
 	listenAndServe(config.ServerAddress, server, logger)
 }
 

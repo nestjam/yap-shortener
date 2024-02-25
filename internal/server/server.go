@@ -7,10 +7,13 @@ import (
 	"io"
 	"net/http"
 	"strconv"
+	"time"
 
 	chimiddleware "github.com/go-chi/chi/middleware"
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
+	"github.com/nestjam/yap-shortener/internal/auth"
+	customctx "github.com/nestjam/yap-shortener/internal/context"
 	"github.com/nestjam/yap-shortener/internal/domain"
 	"github.com/nestjam/yap-shortener/internal/middleware"
 	"github.com/nestjam/yap-shortener/internal/shortener"
@@ -30,10 +33,14 @@ const (
 	failedToStoreURLMessage        = "failed to store url"
 	failedToParseRequestMessage    = "failed to parse request"
 	failedToPrepareResponseMessage = "failed to prepare response"
+	secretKey                      = "supersecretkey"
+	tokenExp                       = time.Hour * 3
 )
 
 type Server struct {
-	storage             domain.URLStore
+	logger              *zap.Logger
+	urlRemover          *URLRemover
+	store               domain.URLStore
 	router              chi.Router
 	baseURL             string
 	shortenURLsMaxCount int
@@ -57,21 +64,30 @@ type ShortURL struct {
 	URL           string `json:"short_url"`
 }
 
+type UserURL struct {
+	ShortURL    string `json:"short_url"`
+	OriginalURL string `json:"original_url"`
+}
+
 type Option func(*Server)
 
-func New(storage domain.URLStore, baseURL string, logger *zap.Logger, options ...Option) *Server {
+func New(store domain.URLStore, baseURL string, options ...Option) *Server {
 	r := chi.NewRouter()
 	s := &Server{
-		storage: storage,
+		store:   store,
 		router:  r,
 		baseURL: baseURL,
+		logger:  zap.NewNop(),
 	}
 
 	for _, opt := range options {
 		opt(s)
 	}
 
-	r.Use(middleware.ResponseLogger(logger))
+	authorizer := auth.New(secretKey, tokenExp)
+	const apiUserURLsPath = "/api/user/urls"
+
+	r.Use(middleware.ResponseLogger(s.logger))
 
 	r.Group(func(r chi.Router) {
 		r.Get("/ping", s.ping)
@@ -80,9 +96,12 @@ func New(storage domain.URLStore, baseURL string, logger *zap.Logger, options ..
 	r.Group(func(r chi.Router) {
 		r.Use(chimiddleware.AllowContentType(applicationJSON))
 		r.Use(middleware.RequestDecoder, middleware.ResponseEncoder)
+		r.Use(middleware.Auth(authorizer))
 
 		r.Post("/api/shorten/batch", s.shortenURLs)
 		r.Post("/api/shorten", s.shortenAPI)
+
+		r.Delete(apiUserURLsPath, s.deleteUserURLs)
 	})
 
 	r.Group(func(r chi.Router) {
@@ -90,7 +109,19 @@ func New(storage domain.URLStore, baseURL string, logger *zap.Logger, options ..
 		r.Use(middleware.RequestDecoder, middleware.ResponseEncoder)
 
 		r.Get("/{key}", s.redirect)
-		r.Post("/", s.shorten)
+
+		r.Group(func(r chi.Router) {
+			r.Use(middleware.Auth(authorizer))
+
+			r.Post("/", s.shorten)
+		})
+	})
+
+	r.Group(func(r chi.Router) {
+		r.Use(middleware.ResponseEncoder)
+		r.Use(middleware.Auth(authorizer))
+
+		r.Get(apiUserURLsPath, s.getUserURLs)
 	})
 
 	return s
@@ -103,10 +134,15 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 func (s *Server) redirect(w http.ResponseWriter, r *http.Request) {
 	key := chi.URLParam(r, "key")
 	ctx := r.Context()
-	url, err := s.storage.GetOriginalURL(ctx, key)
+	url, err := s.store.GetOriginalURL(ctx, key)
 
 	if errors.Is(err, domain.ErrOriginalURLNotFound) {
 		notFound(w, err.Error())
+		return
+	}
+
+	if errors.Is(err, domain.ErrOriginalURLIsDeleted) {
+		http.Error(w, "url is deleted", http.StatusGone)
 		return
 	}
 
@@ -128,8 +164,13 @@ func (s *Server) shorten(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ctx := r.Context()
+	user, _ := customctx.GetUser(ctx)
 	shortURL := shortener.Shorten(uuid.New().ID())
-	err = s.storage.AddURL(ctx, shortURL, string(body))
+	pair := domain.URLPair{
+		ShortURL:    shortURL,
+		OriginalURL: string(body),
+	}
+	err = s.store.AddURL(ctx, pair, user.ID)
 
 	var originalURLAlreadyExists *domain.OriginalURLExistsError
 	if err != nil && !errors.As(err, &originalURLAlreadyExists) {
@@ -168,8 +209,13 @@ func (s *Server) shortenAPI(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ctx := r.Context()
+	user, _ := customctx.GetUser(ctx)
 	shortURL := shortener.Shorten(uuid.New().ID())
-	err = s.storage.AddURL(ctx, shortURL, req.URL)
+	pair := domain.URLPair{
+		ShortURL:    shortURL,
+		OriginalURL: req.URL,
+	}
+	err = s.store.AddURL(ctx, pair, user.ID)
 
 	var originalURLAlreadyExists *domain.OriginalURLExistsError
 	if err != nil && !errors.As(err, &originalURLAlreadyExists) {
@@ -205,7 +251,7 @@ func (s *Server) shortenAPI(w http.ResponseWriter, r *http.Request) {
 func (s *Server) ping(w http.ResponseWriter, r *http.Request) {
 	status := http.StatusInternalServerError
 	ctx := r.Context()
-	if s.storage.IsAvailable(ctx) {
+	if s.store.IsAvailable(ctx) {
 		status = http.StatusOK
 	}
 	w.WriteHeader(status)
@@ -245,7 +291,8 @@ func (s *Server) shortenURLs(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ctx := r.Context()
-	err = s.storage.AddURLs(ctx, urlPairs)
+	user, _ := customctx.GetUser(ctx)
+	err = s.store.AddURLs(ctx, urlPairs, user.ID)
 
 	if err != nil {
 		internalError(w, failedToStoreURLMessage)
@@ -259,7 +306,6 @@ func (s *Server) shortenURLs(w http.ResponseWriter, r *http.Request) {
 			URL:           joinPath(s.baseURL, urlPairs[i].ShortURL),
 		}
 	}
-
 	content, err := json.Marshal(resp)
 
 	if err != nil {
@@ -278,8 +324,65 @@ func (s *Server) shortenURLs(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func isTooManyURLs(req []OriginalURL, maxCount int) bool {
-	return maxCount > 0 && len(req) > maxCount
+func (s *Server) getUserURLs(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	user, _ := customctx.GetUser(ctx)
+
+	if user.IsNew {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	urlPairs, _ := s.store.GetUserURLs(ctx, user.ID)
+
+	if len(urlPairs) == 0 {
+		http.Error(w, "no urls", http.StatusNoContent)
+		return
+	}
+
+	resp := make([]UserURL, len(urlPairs))
+	for i := 0; i < len(urlPairs); i++ {
+		resp[i] = UserURL{
+			OriginalURL: urlPairs[i].OriginalURL,
+			ShortURL:    joinPath(s.baseURL, urlPairs[i].ShortURL),
+		}
+	}
+	content, _ := json.Marshal(resp)
+
+	w.Header().Set(contentTypeHeader, applicationJSON)
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write(content)
+}
+
+func (s *Server) deleteUserURLs(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	user, _ := customctx.GetUser(ctx)
+
+	var shortURLs []string
+	decoder := json.NewDecoder(r.Body)
+	err := decoder.Decode(&shortURLs)
+
+	if err != nil {
+		badRequest(w, failedToParseRequestMessage)
+		return
+	}
+
+	if s.urlRemover != nil {
+		err = s.urlRemover.DeleteURLs(shortURLs, user.ID)
+	} else {
+		err = s.store.DeleteUserURLs(ctx, shortURLs, user.ID)
+	}
+
+	if err != nil {
+		internalError(w, "failed to delete user urls")
+		return
+	}
+
+	w.WriteHeader(http.StatusAccepted)
+}
+
+func isTooManyURLs(urls []OriginalURL, maxCount int) bool {
+	return maxCount > 0 && len(urls) > maxCount
 }
 
 func forbidden(w http.ResponseWriter) {
@@ -302,8 +405,20 @@ func internalError(w http.ResponseWriter, err string) {
 	http.Error(w, err, http.StatusInternalServerError)
 }
 
+func WithLogger(logger *zap.Logger) Option {
+	return func(s *Server) {
+		s.logger = logger
+	}
+}
+
 func WithShortenURLsMaxCount(count int) Option {
-	return func(c *Server) {
-		c.shortenURLsMaxCount = count
+	return func(s *Server) {
+		s.shortenURLsMaxCount = count
+	}
+}
+
+func WithURLsRemover(remover *URLRemover) Option {
+	return func(s *Server) {
+		s.urlRemover = remover
 	}
 }
