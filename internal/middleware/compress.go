@@ -28,11 +28,13 @@ type gzipResponseWriter struct {
 	http.ResponseWriter
 }
 
+// WriteHeader отправляет заголовок HTTP ответа с указанным кодом и удаляет заголовок Content-Length.
 func (w *gzipResponseWriter) WriteHeader(statusCode int) {
 	w.Header().Del(contentLengthHeader)
 	w.ResponseWriter.WriteHeader(statusCode)
 }
 
+// Write выполняет запись сжатых данных в HTTP ответ. 
 func (w *gzipResponseWriter) Write(p []byte) (int, error) {
 	n, err := w.Writer.Write(p)
 
@@ -61,6 +63,7 @@ func newGzipRequestReader(r io.ReadCloser) (*gzipRequestReader, error) {
 	}, nil
 }
 
+// Read выполняет чтение распакованных данных.
 func (g *gzipRequestReader) Read(p []byte) (int, error) {
 	n, err := g.gz.Read(p)
 
@@ -75,6 +78,7 @@ func (g *gzipRequestReader) Read(p []byte) (int, error) {
 	return n, nil
 }
 
+// Close завершает чтение данных. 
 func (g *gzipRequestReader) Close() error {
 	if err := g.ReadCloser.Close(); err != nil {
 		return fmt.Errorf("close reader: %w", err)
@@ -87,6 +91,7 @@ func (g *gzipRequestReader) Close() error {
 	return nil
 }
 
+// ResponseEncoder возвращает посредника, который выполняет сжатие данных HTTP ответа.
 func ResponseEncoder(h http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if !strings.Contains(r.Header.Get(acceptEncodingHeader), gzipEncoding) {
@@ -112,6 +117,7 @@ func ResponseEncoder(h http.Handler) http.Handler {
 	})
 }
 
+// RequestDecoder возвращает посредника, который выполняет распаковку сжатых данных HTTP запроса.
 func RequestDecoder(h http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		encoding := r.Header.Get(contentEncodingHeader)

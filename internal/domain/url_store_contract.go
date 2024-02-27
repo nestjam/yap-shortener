@@ -14,6 +14,7 @@ type URLStoreContract struct {
 	NewURLStore func() (URLStore, func())
 }
 
+// Test задает набор тестов контракта хранилища сокращенных URL.
 func (c URLStoreContract) Test(t *testing.T) {
 	t.Run("add url", func(t *testing.T) {
 		pair := URLPair{

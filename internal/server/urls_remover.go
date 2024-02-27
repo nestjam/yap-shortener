@@ -13,11 +13,13 @@ type deletingURLs struct {
 	userID    domain.UserID
 }
 
+// URLRemover выполняет удаление сокращенных URL.
 type URLRemover struct {
 	deleteCh chan deletingURLs
 	doneCh   <-chan struct{}
 }
 
+// NewURLRemover создает URLRemover.
 func NewURLRemover(ctx context.Context, doneCh <-chan struct{}, store domain.URLStore, log *zap.Logger) *URLRemover {
 	r := &URLRemover{
 		deleteCh: make(chan deletingURLs),
@@ -41,6 +43,7 @@ func NewURLRemover(ctx context.Context, doneCh <-chan struct{}, store domain.URL
 	return r
 }
 
+// DeleteURLs добавляет переданные сокращенные URL на удаление.
 func (r *URLRemover) DeleteURLs(shortURLs []string, userID domain.UserID) error {
 	select {
 	case <-r.doneCh:

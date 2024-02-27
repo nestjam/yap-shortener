@@ -17,10 +17,12 @@ type URLStoreDelegate struct {
 	delegate           URLStore
 }
 
+// NewURLStoreDelegate создает вспомогательный компонент URLStoreDelegate.
 func NewURLStoreDelegate(delegate URLStore) *URLStoreDelegate {
 	return &URLStoreDelegate{delegate: delegate}
 }
 
+// GetOriginalURL возвращает исходный URL для сокращенного URL или ошибку.
 func (u *URLStoreDelegate) GetOriginalURL(ctx context.Context, shortURL string) (string, error) {
 	if u.GetOriginalURLFunc != nil {
 		return u.GetOriginalURLFunc(ctx, shortURL)
@@ -34,6 +36,7 @@ func (u *URLStoreDelegate) GetOriginalURL(ctx context.Context, shortURL string) 
 	return url, nil
 }
 
+// AddURL добавляет в хранилище пару исходный и сокращенный URL.
 func (u *URLStoreDelegate) AddURL(ctx context.Context, pair URLPair, userID UserID) error {
 	if u.AddURLFunc != nil {
 		return u.AddURLFunc(ctx, pair, userID)
@@ -47,6 +50,7 @@ func (u *URLStoreDelegate) AddURL(ctx context.Context, pair URLPair, userID User
 	return nil
 }
 
+// IsAvailable позволяет проверить доступность хранилща.
 func (u *URLStoreDelegate) IsAvailable(ctx context.Context) bool {
 	if u.IsAvailableFunc != nil {
 		return u.IsAvailableFunc(ctx)
@@ -55,6 +59,7 @@ func (u *URLStoreDelegate) IsAvailable(ctx context.Context) bool {
 	return u.delegate.IsAvailable(ctx)
 }
 
+// AddURL добавляет в хранилище коллекцию пар исходного и сокращенного URL.
 func (u *URLStoreDelegate) AddURLs(ctx context.Context, pairs []URLPair, userID UserID) error {
 	if u.AddURLsFunc != nil {
 		return u.AddURLsFunc(ctx, pairs, userID)
@@ -69,6 +74,7 @@ func (u *URLStoreDelegate) AddURLs(ctx context.Context, pairs []URLPair, userID 
 	return nil
 }
 
+// GetUserURLs возвращает коллекцию пар исходного и сокращенного URL, которые были добавлены указанным пользователем.
 func (u *URLStoreDelegate) GetUserURLs(ctx context.Context, userID UserID) ([]URLPair, error) {
 	if u.GetUserURLsFunc != nil {
 		return u.GetUserURLsFunc(ctx, userID)
@@ -83,6 +89,7 @@ func (u *URLStoreDelegate) GetUserURLs(ctx context.Context, userID UserID) ([]UR
 	return urls, nil
 }
 
+// DeleteUserURLs удаляет из хранилища коллекцию пар исходного и сокращенного URL, которые были добавлены указанным пользователем.
 func (u *URLStoreDelegate) DeleteUserURLs(ctx context.Context, shortURLs []string, userID UserID) error {
 	if u.DeleteUserURLsFunc != nil {
 		return u.DeleteUserURLsFunc(ctx, shortURLs, userID)

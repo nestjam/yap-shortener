@@ -6,11 +6,12 @@ import (
 	"path"
 )
 
+// Config описывает конфигурацию сервера сокращения ссылок.
 type Config struct {
-	ServerAddress   string
-	BaseURL         string
-	FileStoragePath string
-	DataSourceName  string
+	ServerAddress   string // адрес сервера
+	BaseURL         string // базовый адрес сокращенной ссылки
+	FileStoragePath string // путь к файловому хранилищу сокращенных ссылок
+	DataSourceName  string // строка подключения к БД хранилища сокращенных ссылок
 }
 
 const (
@@ -20,10 +21,12 @@ const (
 
 var defaultFileStoragePath string = path.Join(os.TempDir(), "short-url-db.json")
 
+// Environment определяет доступ к переменным среды.
 type Environment interface {
 	LookupEnv(key string) (string, bool)
 }
 
+// New создает экземпляр конфигурации с настройками по умолчанию.
 func New() Config {
 	return Config{
 		ServerAddress:   defaultServerAddr,
@@ -32,6 +35,7 @@ func New() Config {
 	}
 }
 
+// FromArgs заполняет параметры конфигурации из аргументов командной строки.
 func (conf Config) FromArgs(args []string) Config {
 	flagSet := flag.NewFlagSet("", flag.PanicOnError)
 	flagSet.StringVar(&conf.ServerAddress, "a", conf.ServerAddress, "server address")
@@ -43,6 +47,7 @@ func (conf Config) FromArgs(args []string) Config {
 	return conf
 }
 
+// FromEnv заполняет параметры конфигурации из переменных среды.
 func (conf Config) FromEnv(env Environment) Config {
 	if servAddr, ok := env.LookupEnv("SERVER_ADDRESS"); ok {
 		conf.ServerAddress = servAddr
