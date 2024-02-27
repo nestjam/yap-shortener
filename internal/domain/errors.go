@@ -30,7 +30,7 @@ func (u *OriginalURLExistsError) Error() string {
 	return fmt.Sprintf("original URL already exists: %v", u.err.Error())
 }
 
-// GetShortUR возвращает сокращенный URL, который был создан ранее.
+// GetShortURL возвращает сокращенный URL, который был создан ранее.
 func (u *OriginalURLExistsError) GetShortURL() string {
 	return u.shortURL
 }

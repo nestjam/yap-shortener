@@ -170,7 +170,8 @@ func (u *FileURLStore) GetUserURLs(ctx context.Context, userID domain.UserID) ([
 	return userURLs, nil
 }
 
-// DeleteUserURLs удаляет из хранилища коллекцию пар исходного и сокращенного URL, которые были добавлены указанным пользователем.
+// DeleteUserURLs удаляет из хранилища коллекцию пар исходного и сокращенного URL,
+// которые были добавлены указанным пользователем.
 func (u *FileURLStore) DeleteUserURLs(ctx context.Context, shortURLs []string, userID domain.UserID) error {
 	u.mu.Lock()
 	defer u.mu.Unlock()
