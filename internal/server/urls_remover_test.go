@@ -5,11 +5,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/nestjam/yap-shortener/internal/domain"
-	"github.com/nestjam/yap-shortener/internal/persistance/inmemory"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
+
+	"github.com/nestjam/yap-shortener/internal/domain"
+	"github.com/nestjam/yap-shortener/internal/persistance/inmemory"
 )
 
 func TestDeleteURLs(t *testing.T) {

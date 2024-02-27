@@ -7,8 +7,9 @@ import (
 	"io"
 	"sync"
 
-	"github.com/nestjam/yap-shortener/internal/domain"
 	"github.com/pkg/errors"
+
+	"github.com/nestjam/yap-shortener/internal/domain"
 )
 
 type FileURLStore struct {
