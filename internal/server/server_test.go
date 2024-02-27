@@ -46,17 +46,6 @@ func TestURLShortener(t *testing.T) {
 	})
 }
 
-func BenchmarkURLShortener(b *testing.B) {
-	b.Run("with in memory store", func(b *testing.B) {
-		URLShortenerTest{
-			CreateDependencies: func() (domain.URLStore, Cleanup) {
-				return inmemory.New(), func() {
-				}
-			},
-		}.Benchmark(b)
-	})
-}
-
 type Cleanup func()
 
 type URLShortenerTest struct {
@@ -750,30 +739,6 @@ func (u URLShortenerTest) Test(t *testing.T) {
 			assert.Equal(t, http.StatusInternalServerError, response.Code)
 			assertBody(t, "failed to delete user urls", response)
 		})
-	})
-}
-
-func (u URLShortenerTest) Benchmark(b *testing.B) {
-	b.Run("redirect to original url", func(b *testing.B) {
-		const shortURL = "EwHXdJfB"
-		userID := domain.NewUserID()
-		pair := domain.URLPair{
-			ShortURL:    shortURL,
-			OriginalURL: testURL,
-		}
-		urlStore, cleanup := u.CreateDependencies()
-		b.Cleanup(cleanup)
-		err := urlStore.AddURL(context.Background(), pair, userID)
-		require.NoError(b, err)
-		sut := New(urlStore, baseURL)
-		request := newGetRequest(shortURL)
-		response := httptest.NewRecorder()
-
-		b.ResetTimer()
-
-		for i := 0; i < b.N; i++ {
-			sut.ServeHTTP(response, request)
-		}
 	})
 }
 
