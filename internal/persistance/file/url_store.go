@@ -12,19 +12,22 @@ import (
 	"github.com/nestjam/yap-shortener/internal/domain"
 )
 
+// FileURLStore реализует хранилище ссылок на основе файла.
 type FileURLStore struct {
 	encoder *json.Encoder
 	m       map[string]StoredURL
 	mu      sync.Mutex
 }
 
+// StoredURL описывает данные сокращенной ссылки.
 type StoredURL struct {
-	ShortURL    string        `json:"short_url"`
-	OriginalURL string        `json:"original_url"`
-	UserID      domain.UserID `json:"user_id"`
-	IsDeleted   bool          `json:"is_deleted"`
+	ShortURL    string        `json:"short_url"` // сокращенный URL
+	OriginalURL string        `json:"original_url"` // исходный URL
+	UserID      domain.UserID `json:"user_id"` // идентификатор пользователя
+	IsDeleted   bool          `json:"is_deleted"` // признак удаленной ссылки
 }
 
+// New создает экземпляр файлового хранилища.
 func New(ctx context.Context, rw io.ReadWriter) (*FileURLStore, error) {
 	const op = "new file storage"
 	m, err := readURLs(rw)
@@ -64,6 +67,7 @@ func readURLs(rw io.ReadWriter) (map[string]StoredURL, error) {
 	return m, nil
 }
 
+// GetOriginalURL возвращает исходный URL для сокращенного URL или ошибку.
 func (u *FileURLStore) GetOriginalURL(ctx context.Context, shortURL string) (string, error) {
 	u.mu.Lock()
 	defer u.mu.Unlock()
@@ -81,6 +85,7 @@ func (u *FileURLStore) GetOriginalURL(ctx context.Context, shortURL string) (str
 	return rec.OriginalURL, nil
 }
 
+// AddURL добавляет в хранилище пару исходный и сокращенный URL.
 func (u *FileURLStore) AddURL(ctx context.Context, pair domain.URLPair, userID domain.UserID) error {
 	const op = "add URL"
 	u.mu.Lock()
@@ -116,6 +121,7 @@ func findShortURL(m map[string]StoredURL, originalURL string) (string, bool) {
 	return "", false
 }
 
+// AddURLs добавляет в хранилище коллекцию пар исходного и сокращенного URL.
 func (u *FileURLStore) AddURLs(ctx context.Context, pairs []domain.URLPair, userID domain.UserID) error {
 	u.mu.Lock()
 	defer u.mu.Unlock()
@@ -137,10 +143,12 @@ func (u *FileURLStore) AddURLs(ctx context.Context, pairs []domain.URLPair, user
 	return nil
 }
 
+// IsAvailable позволяет проверить доступность хранилща.
 func (u *FileURLStore) IsAvailable(ctx context.Context) bool {
 	return true
 }
 
+// GetUserURLs возвращает коллекцию пар исходного и сокращенного URL, которые были добавлены указанным пользователем.
 func (u *FileURLStore) GetUserURLs(ctx context.Context, userID domain.UserID) ([]domain.URLPair, error) {
 	u.mu.Lock()
 	defer u.mu.Unlock()
@@ -162,6 +170,7 @@ func (u *FileURLStore) GetUserURLs(ctx context.Context, userID domain.UserID) ([
 	return userURLs, nil
 }
 
+// DeleteUserURLs удаляет из хранилища коллекцию пар исходного и сокращенного URL, которые были добавлены указанным пользователем.
 func (u *FileURLStore) DeleteUserURLs(ctx context.Context, shortURLs []string, userID domain.UserID) error {
 	u.mu.Lock()
 	defer u.mu.Unlock()

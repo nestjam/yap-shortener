@@ -8,6 +8,7 @@ import (
 	"github.com/nestjam/yap-shortener/internal/domain"
 )
 
+// InmemoryURLStore реализует хранилище ссылок в памяти.
 type InmemoryURLStore struct {
 	m sync.Map
 }
@@ -18,10 +19,12 @@ type urlRecord struct {
 	isDeleted   bool
 }
 
+// New создает экземпляр хранилища.
 func New() *InmemoryURLStore {
 	return &InmemoryURLStore{}
 }
 
+// GetOriginalURL возвращает исходный URL для сокращенного URL или ошибку.
 func (u *InmemoryURLStore) GetOriginalURL(ctx context.Context, shortURL string) (string, error) {
 	value, ok := u.m.Load(shortURL)
 
@@ -42,6 +45,7 @@ func (u *InmemoryURLStore) GetOriginalURL(ctx context.Context, shortURL string) 
 	return rec.originalURL, nil
 }
 
+// AddURL добавляет в хранилище пару исходный и сокращенный URL.
 func (u *InmemoryURLStore) AddURL(ctx context.Context, pair domain.URLPair, userID domain.UserID) error {
 	if shortURL, ok := u.findShortURL(pair.OriginalURL); ok {
 		return domain.NewOriginalURLExistsError(shortURL, nil)
@@ -77,6 +81,7 @@ func (u *InmemoryURLStore) findShortURL(originalURL string) (string, bool) {
 	return shortURL, found
 }
 
+// AddURLs добавляет в хранилище коллекцию пар исходного и сокращенного URL.
 func (u *InmemoryURLStore) AddURLs(ctx context.Context, urls []domain.URLPair, userID domain.UserID) error {
 	for _, url := range urls {
 		rec := urlRecord{
@@ -88,10 +93,12 @@ func (u *InmemoryURLStore) AddURLs(ctx context.Context, urls []domain.URLPair, u
 	return nil
 }
 
+// IsAvailable позволяет проверить доступность хранилща.
 func (u *InmemoryURLStore) IsAvailable(ctx context.Context) bool {
 	return true
 }
 
+// GetUserURLs возвращает коллекцию пар исходного и сокращенного URL, которые были добавлены указанным пользователем.
 func (u *InmemoryURLStore) GetUserURLs(ctx context.Context, userID domain.UserID) ([]domain.URLPair, error) {
 	var userURLs []domain.URLPair
 
@@ -113,6 +120,8 @@ func (u *InmemoryURLStore) GetUserURLs(ctx context.Context, userID domain.UserID
 	return userURLs, nil
 }
 
+// DeleteUserURLs удаляет из хранилища коллекцию пар исходного и сокращенного URL,
+// которые были добавлены указанным пользователем.
 func (u *InmemoryURLStore) DeleteUserURLs(ctx context.Context, shortURLs []string, userID domain.UserID) error {
 	for _, shortURL := range shortURLs {
 		value, ok := u.m.Load(shortURL)
