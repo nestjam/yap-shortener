@@ -37,6 +37,9 @@ func (w *loggingResponseWriter) WriteHeader(statusCode int) {
 
 func ResponseLogger(logger *zap.Logger) func(h http.Handler) http.Handler {
 	return func(h http.Handler) http.Handler {
+		methodCache := make(map[string]zap.Field)
+		statusCache := make(map[int]zap.Field)
+
 		log := func(w http.ResponseWriter, r *http.Request) {
 			start := time.Now()
 			resp := &responseData{
@@ -50,11 +53,18 @@ func ResponseLogger(logger *zap.Logger) func(h http.Handler) http.Handler {
 
 			h.ServeHTTP(&lw, r)
 
+			if _, ok := methodCache[r.Method]; !ok {
+				methodCache[r.Method] = zap.String("method", r.Method)
+			}
+			if _, ok := statusCache[resp.status]; !ok {
+				statusCache[resp.status] = zap.Int("status", resp.status)
+			}
+
 			duration := time.Since(start)
 			logger.Info("",
 				zap.String("uri", r.RequestURI),
-				zap.String("method", r.Method),
-				zap.Int("status", resp.status),
+				methodCache[r.Method],
+				statusCache[resp.status],
 				zap.Duration("duration", duration),
 				zap.Int("size", resp.size),
 			)
