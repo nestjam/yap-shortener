@@ -15,7 +15,7 @@ const (
 // User содержит информацию о пользователе.
 type User struct {
 	ID    domain.UserID // идентификатор пользователя
-	IsNew bool // признак нового пользователя
+	IsNew bool          // признак нового пользователя
 }
 
 // NewUser создает экземпляр пользователя.
@@ -31,7 +31,7 @@ func SetUser(ctx context.Context, user User) context.Context {
 	return context.WithValue(ctx, userIDContextKey, user)
 }
 
-// GetUser получает пользователя из контекста, если пользователь добавлен в контекст. 
+// GetUser получает пользователя из контекста, если пользователь добавлен в контекст.
 func GetUser(ctx context.Context) (User, bool) {
 	user, ok := ctx.Value(userIDContextKey).(User)
 	return user, ok

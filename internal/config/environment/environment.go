@@ -2,7 +2,7 @@ package environment
 
 import "os"
 
-// Environment определяет доступ к переменным среды. 
+// Environment определяет доступ к переменным среды.
 type Environment struct {
 }
 

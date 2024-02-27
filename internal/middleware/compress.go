@@ -34,7 +34,7 @@ func (w *gzipResponseWriter) WriteHeader(statusCode int) {
 	w.ResponseWriter.WriteHeader(statusCode)
 }
 
-// Write выполняет запись сжатых данных в HTTP ответ. 
+// Write выполняет запись сжатых данных в HTTP ответ.
 func (w *gzipResponseWriter) Write(p []byte) (int, error) {
 	n, err := w.Writer.Write(p)
 
@@ -78,7 +78,7 @@ func (g *gzipRequestReader) Read(p []byte) (int, error) {
 	return n, nil
 }
 
-// Close завершает чтение данных. 
+// Close завершает чтение данных.
 func (g *gzipRequestReader) Close() error {
 	if err := g.ReadCloser.Close(); err != nil {
 		return fmt.Errorf("close reader: %w", err)

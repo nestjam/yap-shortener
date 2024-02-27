@@ -7,7 +7,7 @@ import (
 
 // Ошибки, связанные с исходным URL.
 var (
-	ErrOriginalURLNotFound  = errors.New("not found") // исходный URL не найден
+	ErrOriginalURLNotFound  = errors.New("not found")      // исходный URL не найден
 	ErrOriginalURLIsDeleted = errors.New("url is deleted") // исходный URL удален
 )
 
