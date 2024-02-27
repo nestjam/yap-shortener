@@ -20,10 +20,10 @@ type FileURLStore struct {
 
 // StoredURL описывает данные сокращенной ссылки.
 type StoredURL struct {
-	ShortURL    string        `json:"short_url"` // сокращенный URL
+	ShortURL    string        `json:"short_url"`    // сокращенный URL
 	OriginalURL string        `json:"original_url"` // исходный URL
-	UserID      domain.UserID `json:"user_id"` // идентификатор пользователя
-	IsDeleted   bool          `json:"is_deleted"` // признак удаленной ссылки
+	UserID      domain.UserID `json:"user_id"`      // идентификатор пользователя
+	IsDeleted   bool          `json:"is_deleted"`   // признак удаленной ссылки
 }
 
 // New создает экземпляр файлового хранилища.
