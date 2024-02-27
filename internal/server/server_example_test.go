@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 
@@ -31,4 +32,11 @@ func ExampleServer_ServeHTTP_expandURL() {
 	response := httptest.NewRecorder()
 
 	sut.ServeHTTP(response, request)
+
+	fmt.Println(response.Code)
+	fmt.Println(response.Header().Get("Location"))
+
+	// Output:
+	// 307
+	// https://practicum.yandex.ru/
 }
