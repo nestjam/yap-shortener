@@ -2,11 +2,13 @@ package domain
 
 import "context"
 
+// URLPair хранит пару исходный и сокращенный URL
 type URLPair struct {
-	ShortURL    string
-	OriginalURL string
+	ShortURL    string // сокращенный URL
+	OriginalURL string // исходный URL
 }
 
+// URLStore определяет интерфейс хранилища сокращенных URL
 type URLStore interface {
 	GetOriginalURL(ctx context.Context, shortURL string) (string, error)
 	AddURL(ctx context.Context, pair URLPair, userID UserID) error

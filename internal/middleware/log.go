@@ -18,6 +18,7 @@ type loggingResponseWriter struct {
 	responseData *responseData
 }
 
+// Write выполняет запись данных в HTTP ответ и сохраняет информацию о размере данных. 
 func (w *loggingResponseWriter) Write(b []byte) (int, error) {
 	const op = "logging response"
 	size, err := w.ResponseWriter.Write(b)
@@ -30,11 +31,13 @@ func (w *loggingResponseWriter) Write(b []byte) (int, error) {
 	return size, nil
 }
 
+// WriteHeader отправляет заголовок HTTP ответа с указанным кодом и сохраняет отправленый статус.
 func (w *loggingResponseWriter) WriteHeader(statusCode int) {
 	w.ResponseWriter.WriteHeader(statusCode)
 	w.responseData.status = statusCode
 }
 
+// ResponseLogger возвращает посредника, который логирует сведения из HTTP ответа.
 func ResponseLogger(logger *zap.Logger) func(h http.Handler) http.Handler {
 	return func(h http.Handler) http.Handler {
 		methodCache := make(map[string]zap.Field)

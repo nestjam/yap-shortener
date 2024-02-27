@@ -38,6 +38,7 @@ const (
 	tokenExp                       = time.Hour * 3
 )
 
+// Server предоставляет возможность сокращать URL, получать исходный и управлять сокращенными URL.
 type Server struct {
 	logger              *zap.Logger
 	urlRemover          *URLRemover
@@ -47,31 +48,38 @@ type Server struct {
 	shortenURLsMaxCount int
 }
 
+// ShortenRequest представляет тело запроса и содержит исходный URL.
 type ShortenRequest struct {
-	URL string `json:"url"`
+	URL string `json:"url"` // исходный URL
 }
 
+// ShortenResponse содержит сокращенный URL.
 type ShortenResponse struct {
-	Result string `json:"result"`
+	Result string `json:"result"` // сокращенный URL
 }
 
+// OriginalURL содержит исходный URL. Применяется в запросе сокращения набора URL.
 type OriginalURL struct {
-	CorrelationID string `json:"correlation_id"`
-	URL           string `json:"original_url"`
+	CorrelationID string `json:"correlation_id"` // идентификатор для сопоставления исходного и сокращенного URL
+	URL           string `json:"original_url"`   // исходный URL
 }
 
+// ShortURL содержит сокращенный URL. Возвращается в ответе на запрос сокращения набора URL.
 type ShortURL struct {
-	CorrelationID string `json:"correlation_id"`
-	URL           string `json:"short_url"`
+	CorrelationID string `json:"correlation_id"` // идентификатор для сопоставления исходного и сокращенного URL
+	URL           string `json:"short_url"`      // сокращенный URL
 }
 
+// UserURL содержит исходный и сокращенный URL. Возвращается в ответе на запрос набора URL, сокращенного пользователем.
 type UserURL struct {
-	ShortURL    string `json:"short_url"`
-	OriginalURL string `json:"original_url"`
+	ShortURL    string `json:"short_url"`    // сокращенный URL
+	OriginalURL string `json:"original_url"` // исходный URL
 }
 
+// Option определяет опцию настройки сервера.
 type Option func(*Server)
 
+// New создает сервер. Конструктор принимает на вход хранилище URL, базовый URL и набор опций.
 func New(store domain.URLStore, baseURL string, options ...Option) *Server {
 	r := chi.NewRouter()
 	s := &Server{
@@ -128,6 +136,7 @@ func New(store domain.URLStore, baseURL string, options ...Option) *Server {
 	return s
 }
 
+// ServeHTTP обрабатывает запрос.
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	s.router.ServeHTTP(w, r)
 }
@@ -406,18 +415,21 @@ func internalError(w http.ResponseWriter, err string) {
 	http.Error(w, err, http.StatusInternalServerError)
 }
 
+// WithLogger задает логер для сервера.
 func WithLogger(logger *zap.Logger) Option {
 	return func(s *Server) {
 		s.logger = logger
 	}
 }
 
+// WithShortenURLsMaxCount определяет максимальное количество URL в запросе на сокращение коллекции URL.
 func WithShortenURLsMaxCount(count int) Option {
 	return func(s *Server) {
 		s.shortenURLsMaxCount = count
 	}
 }
 
+// WithURLsRemover задает компонент, который выполняет удаление сохраненных URL.
 func WithURLsRemover(remover *URLRemover) Option {
 	return func(s *Server) {
 		s.urlRemover = remover

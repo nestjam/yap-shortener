@@ -18,6 +18,8 @@ const (
 	eventKey = "event"
 )
 
+// NewStorage создает экземпляр хранилища на основе конфигурации.
+// Возвращает хранилище и функцию для корректного закрытия хранилища.
 func NewStorage(ctx context.Context, conf conf.Config, logger *zap.Logger) (domain.URLStore, func()) {
 	if conf.DataSourceName != "" {
 		logger.Info("Using sql store")
@@ -61,6 +63,8 @@ func newFileStore(ctx context.Context, conf conf.Config, logger *zap.Logger) (do
 	return store, closer
 }
 
+// NewLogger создает экземпляр логгера.
+// Возвращает логгер и функцию для корректного закрытия логгера.
 func NewLogger() (*zap.Logger, func()) {
 	logger, err := newProductionLogger()
 

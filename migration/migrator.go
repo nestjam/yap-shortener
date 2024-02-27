@@ -13,14 +13,17 @@ import (
 //go:embed *.sql
 var migrationsDir embed.FS
 
+// URLStoreMigrator выполняет миграцию данных.
 type URLStoreMigrator struct {
 	connString string
 }
 
+// NewURLStoreMigrator создает экземпляр URLStoreMigrator.
 func NewURLStoreMigrator(connString string) *URLStoreMigrator {
 	return &URLStoreMigrator{connString: connString}
 }
 
+// Up выполняет обновление данных до последней версии.
 func (u *URLStoreMigrator) Up() error {
 	const op = "migrate up"
 	m, err := createMigrate(u.connString)
@@ -58,6 +61,7 @@ func createMigrate(connString string) (*migrate.Migrate, error) {
 	return m, nil
 }
 
+// Drop удаляет все в БД.
 func (u *URLStoreMigrator) Drop() error {
 	const op = "drop"
 	m, err := createMigrate(u.connString)
