@@ -32,3 +32,4 @@ func ExampleServer_ServeHTTP_expandURL() {
 
 	sut.ServeHTTP(response, request)
 }
+
