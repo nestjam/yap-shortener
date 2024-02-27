@@ -13,16 +13,19 @@ import (
 
 const userAuthCookieName = "userauth"
 
+// Claims определяет зарегистрированные утверждения и данные пользователя.
 type Claims struct {
 	jwt.RegisteredClaims
 	UserID uuid.UUID
 }
 
+// UserAuth выполняет аутентификацию пользователя.
 type UserAuth struct {
 	secret   string
 	tokenExp time.Duration
 }
 
+// New создает экземпляр UserAuth с указанным секретом и временем жизни токена.
 func New(secret string, tokenExp time.Duration) *UserAuth {
 	return &UserAuth{
 		secret:   secret,
@@ -30,6 +33,7 @@ func New(secret string, tokenExp time.Duration) *UserAuth {
 	}
 }
 
+// GetUserID возвращает идентификатор пользователя из запроса, если они успешно извлечены.
 func (a *UserAuth) GetUserID(r *http.Request) (domain.UserID, error) {
 	const op = "get user id from request"
 	cookie, err := r.Cookie(userAuthCookieName)
@@ -47,6 +51,7 @@ func (a *UserAuth) GetUserID(r *http.Request) (domain.UserID, error) {
 	return userID, nil
 }
 
+// ParseJWT выполняет парсинг JWT и возвращает идентификатор пользователя в случае успеха.
 func (a *UserAuth) ParseJWT(tokenString string) (domain.UserID, error) {
 	const op = "parse jwt"
 	claims := &Claims{}
@@ -69,6 +74,7 @@ func (a *UserAuth) ParseJWT(tokenString string) (domain.UserID, error) {
 	return domain.UserID(claims.UserID), nil
 }
 
+// CreateCookie возвращает Cookie с идентификатором пользователя.
 func (a *UserAuth) CreateCookie(userID domain.UserID) (*http.Cookie, error) {
 	const op = "create cookie"
 	token, err := a.buildJWT(userID)

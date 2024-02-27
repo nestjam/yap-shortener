@@ -16,11 +16,13 @@ import (
 	_ "github.com/golang-migrate/migrate/v4/database/postgres"
 )
 
+// PostgresURLStore реализует хранилище ссылок в БД.
 type PostgresURLStore struct {
 	pool       *pgxpool.Pool
 	connString string
 }
 
+// New создает экземпляр хранилища.
 func New(ctx context.Context, connString string) (*PostgresURLStore, error) {
 	const op = "new store"
 
@@ -43,6 +45,7 @@ func New(ctx context.Context, connString string) (*PostgresURLStore, error) {
 	return store, nil
 }
 
+// Close завершает работу с БД.
 func (u *PostgresURLStore) Close() {
 	if u.pool == nil {
 		return
@@ -71,6 +74,7 @@ func initPool(ctx context.Context, connString string) (*pgxpool.Pool, error) {
 	return pool, nil
 }
 
+// GetOriginalURL возвращает исходный URL для сокращенного URL или ошибку.
 func (u *PostgresURLStore) GetOriginalURL(ctx context.Context, shortURL string) (string, error) {
 	const op = "get original URL"
 	conn, err := u.pool.Acquire(ctx)
@@ -96,6 +100,7 @@ func (u *PostgresURLStore) GetOriginalURL(ctx context.Context, shortURL string) 
 	return originalURL, nil
 }
 
+// AddURL добавляет в хранилище пару исходный и сокращенный URL.
 func (u *PostgresURLStore) AddURL(ctx context.Context, pair domain.URLPair, userID domain.UserID) error {
 	const op = "add URL"
 
@@ -155,6 +160,7 @@ func getShortURL(ctx context.Context, conn *pgxpool.Conn, originalURL string) (s
 	return shortURL, nil
 }
 
+// AddURLs добавляет в хранилище коллекцию пар исходного и сокращенного URL.
 func (u *PostgresURLStore) AddURLs(ctx context.Context, pairs []domain.URLPair, userID domain.UserID) error {
 	const op = "add URLs"
 	conn, err := u.pool.Acquire(ctx)
@@ -201,6 +207,7 @@ func prepareRows(pairs []domain.URLPair, userID domain.UserID) [][]any {
 	return rows
 }
 
+// IsAvailable позволяет проверить доступность хранилща.
 func (u *PostgresURLStore) IsAvailable(ctx context.Context) bool {
 	conn, err := u.pool.Acquire(ctx)
 	defer conn.Release()
@@ -213,6 +220,7 @@ func (u *PostgresURLStore) IsAvailable(ctx context.Context) bool {
 	return err == nil
 }
 
+// GetUserURLs возвращает коллекцию пар исходного и сокращенного URL, которые были добавлены указанным пользователем.
 func (u *PostgresURLStore) GetUserURLs(ctx context.Context, userID domain.UserID) ([]domain.URLPair, error) {
 	const op = "get user URLs"
 	conn, err := u.pool.Acquire(ctx)
@@ -250,6 +258,8 @@ func (u *PostgresURLStore) GetUserURLs(ctx context.Context, userID domain.UserID
 	return userURLs, nil
 }
 
+// DeleteUserURLs удаляет из хранилища коллекцию пар исходного и сокращенного URL,
+// которые были добавлены указанным пользователем.
 func (u *PostgresURLStore) DeleteUserURLs(ctx context.Context, shortURLs []string, userID domain.UserID) error {
 	const op = "delete user URLs"
 	conn, err := u.pool.Acquire(ctx)
