@@ -3,11 +3,13 @@ package server
 import (
 	"context"
 	"net/http/httptest"
+	"strconv"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 
 	"github.com/nestjam/yap-shortener/internal/domain"
 	"github.com/nestjam/yap-shortener/internal/persistance/inmemory"
-	"github.com/stretchr/testify/require"
 )
 
 func BenchmarkURLShortener(b *testing.B) {
@@ -40,6 +42,23 @@ func (u URLShortenerTest) Benchmark(b *testing.B) {
 		b.ResetTimer()
 
 		for i := 0; i < b.N; i++ {
+			sut.ServeHTTP(response, request)
+		}
+	})
+
+	b.Run("shorten url", func(b *testing.B) {
+		urlStore, cleanup := u.CreateDependencies()
+		b.Cleanup(cleanup)
+		sut := New(urlStore, baseURL)
+
+		b.ResetTimer()
+
+		for i := 0; i < b.N; i++ {
+			b.StopTimer()
+			request := newShortenRequest(testURL + strconv.Itoa(i))
+			response := httptest.NewRecorder()
+			b.StartTimer()
+
 			sut.ServeHTTP(response, request)
 		}
 	})
