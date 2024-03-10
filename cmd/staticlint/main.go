@@ -1,6 +1,9 @@
 package main
 
 import (
+	"strings"
+
+	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/multichecker"
 	"golang.org/x/tools/go/analysis/passes/appends"
 	"golang.org/x/tools/go/analysis/passes/asmdecl"
@@ -48,10 +51,21 @@ import (
 	"golang.org/x/tools/go/analysis/passes/unusedresult"
 	"golang.org/x/tools/go/analysis/passes/unusedwrite"
 	"golang.org/x/tools/go/analysis/passes/usesgenerics"
+	"honnef.co/go/tools/staticcheck"
 )
 
 func main() {
-	multichecker.Main(
+	a := make([]*analysis.Analyzer, 0)
+	a = append(a, getAnalyzersFromAnalysis()...)
+	a = append(a, getStaticcheckSAAnalyzers()...)
+	a = append(a, getStaticcheckAnalyzers("S1005", "S1011", "S1030")...)
+	a = append(a, getStaticcheckAnalyzers("ST1003", "ST1005", "ST1006")...)
+	a = append(a, getStaticcheckAnalyzers("QF1002", "QF1007")...)
+	multichecker.Main(a...)
+}
+
+func getAnalyzersFromAnalysis() []*analysis.Analyzer {
+	checks := []*analysis.Analyzer{
 		appends.Analyzer,
 		asmdecl.Analyzer,
 		assign.Analyzer,
@@ -98,5 +112,30 @@ func main() {
 		unusedresult.Analyzer,
 		unusedwrite.Analyzer,
 		usesgenerics.Analyzer,
-	)
+	}
+	return checks
+}
+
+func getStaticcheckSAAnalyzers() []*analysis.Analyzer {
+	var checks []*analysis.Analyzer
+	for _, v := range staticcheck.Analyzers {
+		if strings.HasPrefix(v.Analyzer.Name, "SA") {
+			checks = append(checks, v.Analyzer)
+		}
+	}
+	return checks
+}
+
+func getStaticcheckAnalyzers(names ...string) []*analysis.Analyzer {
+	n := make(map[string]bool)
+	for _, name := range names {
+		n[name] = true
+	}
+	var checks []*analysis.Analyzer
+	for _, v := range staticcheck.Analyzers {
+		if _, ok := n[v.Analyzer.Name]; ok {
+			checks = append(checks, v.Analyzer)
+		}
+	}
+	return checks
 }
