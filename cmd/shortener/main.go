@@ -5,11 +5,12 @@ import (
 	"net/http"
 	"os"
 
+	"go.uber.org/zap"
+
 	conf "github.com/nestjam/yap-shortener/internal/config"
 	env "github.com/nestjam/yap-shortener/internal/config/environment"
 	factory "github.com/nestjam/yap-shortener/internal/factory"
 	"github.com/nestjam/yap-shortener/internal/server"
-	"go.uber.org/zap"
 )
 
 const (

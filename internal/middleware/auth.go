@@ -3,10 +3,11 @@ package middleware
 import (
 	"net/http"
 
+	"github.com/pkg/errors"
+
 	"github.com/nestjam/yap-shortener/internal/auth"
 	customctx "github.com/nestjam/yap-shortener/internal/context"
 	"github.com/nestjam/yap-shortener/internal/domain"
-	"github.com/pkg/errors"
 )
 
 // Auth возвращает посредника, который добавляет в контекст запроса данные для аутентификации пользователя.

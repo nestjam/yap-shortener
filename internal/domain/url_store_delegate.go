@@ -59,7 +59,7 @@ func (u *URLStoreDelegate) IsAvailable(ctx context.Context) bool {
 	return u.delegate.IsAvailable(ctx)
 }
 
-// AddURL добавляет в хранилище коллекцию пар исходного и сокращенного URL.
+// AddURLs добавляет в хранилище коллекцию пар исходного и сокращенного URL.
 func (u *URLStoreDelegate) AddURLs(ctx context.Context, pairs []URLPair, userID UserID) error {
 	if u.AddURLsFunc != nil {
 		return u.AddURLsFunc(ctx, pairs, userID)
@@ -89,7 +89,8 @@ func (u *URLStoreDelegate) GetUserURLs(ctx context.Context, userID UserID) ([]UR
 	return urls, nil
 }
 
-// DeleteUserURLs удаляет из хранилища коллекцию пар исходного и сокращенного URL, которые были добавлены указанным пользователем.
+// DeleteUserURLs удаляет из хранилища коллекцию пар исходного и сокращенного URL,
+// которые были добавлены указанным пользователем.
 func (u *URLStoreDelegate) DeleteUserURLs(ctx context.Context, shortURLs []string, userID UserID) error {
 	if u.DeleteUserURLsFunc != nil {
 		return u.DeleteUserURLsFunc(ctx, shortURLs, userID)

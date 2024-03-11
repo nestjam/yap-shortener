@@ -7,8 +7,9 @@ import (
 
 	"github.com/golang-jwt/jwt/v4"
 	"github.com/google/uuid"
-	"github.com/nestjam/yap-shortener/internal/domain"
 	"github.com/pkg/errors"
+
+	"github.com/nestjam/yap-shortener/internal/domain"
 )
 
 const userAuthCookieName = "userauth"

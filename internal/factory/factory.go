@@ -5,12 +5,13 @@ import (
 	"fmt"
 	"os"
 
+	"go.uber.org/zap"
+
 	conf "github.com/nestjam/yap-shortener/internal/config"
 	"github.com/nestjam/yap-shortener/internal/domain"
 	filestore "github.com/nestjam/yap-shortener/internal/persistance/file"
 	"github.com/nestjam/yap-shortener/internal/persistance/inmemory"
 	"github.com/nestjam/yap-shortener/internal/persistance/pgsql"
-	"go.uber.org/zap"
 )
 
 const (

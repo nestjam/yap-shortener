@@ -7,9 +7,10 @@ import (
 	"context"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/nestjam/yap-shortener/internal/domain"
 	"github.com/nestjam/yap-shortener/migration"
-	"github.com/stretchr/testify/require"
 )
 
 const connString = "postgres://postgres:postgres@localhost:5432/praktikum?sslmode=disable"

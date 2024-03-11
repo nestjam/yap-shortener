@@ -7,9 +7,10 @@ import (
 	"os"
 	"testing"
 
-	"github.com/nestjam/yap-shortener/internal/domain"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/nestjam/yap-shortener/internal/domain"
 )
 
 func TestFileURLStore(t *testing.T) {

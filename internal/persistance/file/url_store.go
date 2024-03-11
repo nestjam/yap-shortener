@@ -7,8 +7,9 @@ import (
 	"io"
 	"sync"
 
-	"github.com/nestjam/yap-shortener/internal/domain"
 	"github.com/pkg/errors"
+
+	"github.com/nestjam/yap-shortener/internal/domain"
 )
 
 // FileURLStore реализует хранилище ссылок на основе файла.
@@ -169,7 +170,8 @@ func (u *FileURLStore) GetUserURLs(ctx context.Context, userID domain.UserID) ([
 	return userURLs, nil
 }
 
-// DeleteUserURLs удаляет из хранилища коллекцию пар исходного и сокращенного URL, которые были добавлены указанным пользователем.
+// DeleteUserURLs удаляет из хранилища коллекцию пар исходного и сокращенного URL,
+// которые были добавлены указанным пользователем.
 func (u *FileURLStore) DeleteUserURLs(ctx context.Context, shortURLs []string, userID domain.UserID) error {
 	u.mu.Lock()
 	defer u.mu.Unlock()
