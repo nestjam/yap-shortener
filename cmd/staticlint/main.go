@@ -52,6 +52,8 @@ import (
 	"golang.org/x/tools/go/analysis/passes/unusedwrite"
 	"golang.org/x/tools/go/analysis/passes/usesgenerics"
 	"honnef.co/go/tools/staticcheck"
+
+	"github.com/nestjam/yap-shortener/internal/staticlint"
 )
 
 func main() {
@@ -61,6 +63,7 @@ func main() {
 	a = append(a, getStaticcheckAnalyzers("S1005", "S1011", "S1030")...)
 	a = append(a, getStaticcheckAnalyzers("ST1003", "ST1005", "ST1006")...)
 	a = append(a, getStaticcheckAnalyzers("QF1002", "QF1007")...)
+	a = append(a, staticlint.ExitMainAnalyzer)
 	multichecker.Main(a...)
 }
 
