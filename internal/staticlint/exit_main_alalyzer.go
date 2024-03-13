@@ -9,6 +9,7 @@ import (
 
 const usingExitInMainWarn = "using exit in main"
 
+// ExitMainAnalyzer запрещает использовать прямой вызов os.Exit в функции main пакета main.
 var ExitMainAnalyzer = &analysis.Analyzer{
 	Name: "exitmain",
 	Doc:  "check using exit in main",

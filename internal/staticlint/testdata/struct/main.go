@@ -12,5 +12,6 @@ func main() {
 type foo struct {
 }
 
+// Exit - тестовый метод.
 func (f foo) Exit(code int) {
 }

@@ -13,5 +13,6 @@ func main() {
 	os.Exit(1) // want "using exit in main"
 }
 
+// Exit - тестовый метод.
 func Exit() {
 }
