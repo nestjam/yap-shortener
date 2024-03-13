@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"os"
 
@@ -18,7 +19,15 @@ const (
 	shortenURLsMaxCount = 1000
 )
 
+var (
+	buildVersion string
+	buildDate    string
+	buildCommit  string
+)
+
 func main() {
+	printBuildInfo()
+
 	config := conf.New().
 		FromArgs(os.Args).
 		FromEnv(env.New())
@@ -40,6 +49,28 @@ func main() {
 		server.WithShortenURLsMaxCount(shortenURLsMaxCount),
 		server.WithURLsRemover(urlRemoved))
 	listenAndServe(config.ServerAddress, server, logger)
+}
+
+func printBuildInfo() {
+	const notAwailable = "N/A"
+
+	if buildVersion == "" {
+		fmt.Println(notAwailable)
+	} else {
+		fmt.Printf("Build version: %s\n", buildVersion)
+	}
+
+	if buildDate == "" {
+		fmt.Println(notAwailable)
+	} else {
+		fmt.Printf("Build date: %s\n", buildDate)
+	}
+
+	if buildCommit == "" {
+		fmt.Println(notAwailable)
+	} else {
+		fmt.Printf("Build commit: %s\n", buildCommit)
+	}
 }
 
 func listenAndServe(address string, server *server.Server, logger *zap.Logger) {
