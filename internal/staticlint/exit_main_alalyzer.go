@@ -2,7 +2,7 @@ package staticlint
 
 import (
 	"go/ast"
-	"go/token"
+	"go/types"
 
 	"golang.org/x/tools/go/analysis"
 )
@@ -18,20 +18,22 @@ var ExitMainAnalyzer = &analysis.Analyzer{
 
 func run(pass *analysis.Pass) (interface{}, error) {
 	const (
-		mainPackageName      = "main"
-		mainFuncName         = "main"
-		osPackageDefaultName = "os"
+		mainPackageName = "main"
+		mainFuncName    = "main"
+		osPkgPath       = "os"
 	)
 
-	isExitCall := func(call *ast.CallExpr, osPackageName string) bool {
+	isExitCall := func(call *ast.CallExpr) bool {
 		const exitFuncName = "Exit"
 		switch x := call.Fun.(type) {
 		case *ast.SelectorExpr:
-			if isIdent(x.Sel, exitFuncName) && isPackageIdent(x.X, osPackageName) {
+			obj := pass.TypesInfo.Uses[x.Sel]
+			if obj != nil && isFuncDef(obj, exitFuncName, osPkgPath) {
 				return true
 			}
 		case *ast.Ident:
-			if isIdent(x, exitFuncName) && osPackageName == "." {
+			obj := pass.TypesInfo.Uses[x]
+			if obj != nil && isFuncDef(obj, exitFuncName, osPkgPath) {
 				return true
 			}
 		}
@@ -39,34 +41,6 @@ func run(pass *analysis.Pass) (interface{}, error) {
 	}
 
 	for _, file := range pass.Files {
-		isOSImported := false
-		osPackageName := osPackageDefaultName
-
-		ast.Inspect(file, func(node ast.Node) bool {
-			switch x := node.(type) {
-			case *ast.File:
-				if isIdent(x.Name, mainPackageName) {
-					return true
-				}
-			case *ast.GenDecl:
-				if x.Tok == token.IMPORT {
-					return true
-				}
-			case *ast.ImportSpec:
-				if x.Path.Value == "\"os\"" {
-					isOSImported = true
-					if x.Name != nil {
-						osPackageName = x.Name.Name
-					}
-				}
-			}
-			return false
-		})
-
-		if !isOSImported {
-			continue
-		}
-
 		ast.Inspect(file, func(node ast.Node) bool {
 			switch x := node.(type) {
 			case *ast.File:
@@ -82,7 +56,7 @@ func run(pass *analysis.Pass) (interface{}, error) {
 			case *ast.ExprStmt:
 				return true
 			case *ast.CallExpr:
-				if isExitCall(x, osPackageName) {
+				if isExitCall(x) {
 					pass.Reportf(x.Pos(), usingExitInMainWarn)
 				}
 			}
@@ -98,7 +72,7 @@ func isIdent(expr ast.Expr, name string) bool {
 	return ok && id.Name == name
 }
 
-func isPackageIdent(expr ast.Expr, name string) bool {
-	id, ok := expr.(*ast.Ident)
-	return ok && id.Obj == nil && id.Name == name
+func isFuncDef(obj types.Object, objName, pkgPath string) bool {
+	f, ok := obj.(*types.Func)
+	return ok && f.Name() == objName && f.Pkg().Path() == pkgPath
 }
