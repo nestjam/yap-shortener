@@ -53,22 +53,22 @@ import (
 	"golang.org/x/tools/go/analysis/passes/usesgenerics"
 	"honnef.co/go/tools/staticcheck"
 
+	gocritic "github.com/go-critic/go-critic/checkers/analyzer"
 	"github.com/nestjam/yap-shortener/internal/staticlint"
+	"github.com/timakin/bodyclose/passes/bodyclose"
 )
 
 func main() {
 	a := make([]*analysis.Analyzer, 0)
-	a = append(a, getAnalyzersFromAnalysis()...)
-	a = append(a, getStaticcheckSAAnalyzers()...)
-	a = append(a, getStaticcheckAnalyzers("S1005", "S1011", "S1030")...)
-	a = append(a, getStaticcheckAnalyzers("ST1003", "ST1005", "ST1006")...)
-	a = append(a, getStaticcheckAnalyzers("QF1002", "QF1007")...)
+	a = append(a, getAnalysisAnalyzers()...)
+	a = append(a, getStaticcheckAnalyzers()...)
+	a = append(a, getOtherAnalyzers()...)
 	a = append(a, staticlint.ExitMainAnalyzer)
 	multichecker.Main(a...)
 }
 
-func getAnalyzersFromAnalysis() []*analysis.Analyzer {
-	checks := []*analysis.Analyzer{
+func getAnalysisAnalyzers() []*analysis.Analyzer {
+	return []*analysis.Analyzer{
 		appends.Analyzer,
 		asmdecl.Analyzer,
 		assign.Analyzer,
@@ -116,29 +116,45 @@ func getAnalyzersFromAnalysis() []*analysis.Analyzer {
 		unusedwrite.Analyzer,
 		usesgenerics.Analyzer,
 	}
-	return checks
+}
+
+func getStaticcheckAnalyzers() []*analysis.Analyzer {
+	a := make([]*analysis.Analyzer, 0)
+	a = append(a, getStaticcheckSAAnalyzers()...)
+	a = append(a, getSomeStaticcheckAnalyzers("S1005", "S1011", "S1030")...)
+	a = append(a, getSomeStaticcheckAnalyzers("ST1003", "ST1005", "ST1006")...)
+	a = append(a, getSomeStaticcheckAnalyzers("QF1002", "QF1007")...)
+	return a
 }
 
 func getStaticcheckSAAnalyzers() []*analysis.Analyzer {
-	var checks []*analysis.Analyzer
+	var a []*analysis.Analyzer
 	for _, v := range staticcheck.Analyzers {
 		if strings.HasPrefix(v.Analyzer.Name, "SA") {
-			checks = append(checks, v.Analyzer)
+			a = append(a, v.Analyzer)
 		}
 	}
-	return checks
+	return a
 }
 
-func getStaticcheckAnalyzers(names ...string) []*analysis.Analyzer {
+func getSomeStaticcheckAnalyzers(names ...string) []*analysis.Analyzer {
 	n := make(map[string]bool)
 	for _, name := range names {
 		n[name] = true
 	}
-	var checks []*analysis.Analyzer
+
+	var a []*analysis.Analyzer
 	for _, v := range staticcheck.Analyzers {
 		if _, ok := n[v.Analyzer.Name]; ok {
-			checks = append(checks, v.Analyzer)
+			a = append(a, v.Analyzer)
 		}
 	}
-	return checks
+	return a
+}
+
+func getOtherAnalyzers() []*analysis.Analyzer {
+	return []*analysis.Analyzer{
+		gocritic.Analyzer,
+		bodyclose.Analyzer,
+	}
 }
