@@ -127,10 +127,10 @@ func (u *PostgresURLStore) AddURL(ctx context.Context, pair domain.URLPair, user
 	var pgErr *pgconn.PgError
 	if errors.As(err, &pgErr) && pgErr.Code == pgerrcode.UniqueViolation {
 		_ = tx.Rollback(ctx)
-		shortURL, err := getShortURL(ctx, conn, pair.OriginalURL)
+		shortURL, er := getShortURL(ctx, conn, pair.OriginalURL)
 
-		if err != nil {
-			return errors.Wrapf(err, op)
+		if er != nil {
+			return errors.Wrapf(er, op)
 		}
 
 		return domain.NewOriginalURLExistsError(shortURL, nil)
@@ -243,7 +243,7 @@ func (u *PostgresURLStore) GetUserURLs(ctx context.Context, userID domain.UserID
 	var userURLs []domain.URLPair
 	for rows.Next() {
 		userURL := domain.URLPair{}
-		err := rows.Scan(&userURL.ShortURL, &userURL.OriginalURL)
+		err = rows.Scan(&userURL.ShortURL, &userURL.OriginalURL)
 
 		if err != nil {
 			return nil, errors.Wrapf(err, op)
