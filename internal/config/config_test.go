@@ -212,9 +212,8 @@ func TestConfigFromEnv(t *testing.T) {
 func TestNew(t *testing.T) {
 	t.Run("new", func(t *testing.T) {
 		want := Config{
-			ServerAddress:   defaultServerAddr,
-			BaseURL:         defaultBaseURL,
-			FileStoragePath: defaultFileStoragePath,
+			ServerAddress: defaultServerAddr,
+			BaseURL:       defaultBaseURL,
 		}
 
 		got := New()

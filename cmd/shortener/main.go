@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"os/signal"
+	"syscall"
 
 	"go.uber.org/zap"
 	"golang.org/x/crypto/acme/autocert"
@@ -29,18 +31,19 @@ var (
 func main() {
 	printBuildInfo()
 
+	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM, syscall.SIGINT)
+	defer cancel()
+
 	config := getConfig()
 
 	logger, tearDownLogger := factory.NewLogger()
 	defer tearDownLogger()
 
-	ctx := context.Background()
 	store, tearDownStorage := factory.NewStorage(ctx, config, logger)
 	defer tearDownStorage()
 
 	doneCh := make(chan struct{})
 	defer close(doneCh)
-
 	urlRemoved := server.NewURLRemover(ctx, doneCh, store, logger)
 
 	handler := server.New(store, config.BaseURL,
@@ -48,7 +51,7 @@ func main() {
 		server.WithShortenURLsMaxCount(shortenURLsMaxCount),
 		server.WithURLsRemover(urlRemoved))
 
-	runServer(config, handler, logger)
+	runServer(ctx, config, handler, logger)
 }
 
 func getConfig() conf.Config {
@@ -83,13 +86,25 @@ func getConfigFilePath() string {
 	return path
 }
 
-func runServer(config conf.Config, handler *server.Server, logger *zap.Logger) {
+func runServer(ctx context.Context, config conf.Config, handler *server.Server, log *zap.Logger) {
+	doneCh := make(chan struct{})
+
 	server := &http.Server{
 		Addr:    config.ServerAddress,
 		Handler: handler,
 	}
 
-	logger.Info("Running server", zap.String("address", config.ServerAddress))
+	go func() {
+		<-ctx.Done()
+
+		if err := server.Shutdown(context.Background()); err != nil {
+			log.Sugar().Infof("HTTP server shut down: %v", err)
+		}
+
+		close(doneCh)
+	}()
+
+	log.Info("running server", zap.String("address", config.ServerAddress))
 	var err error
 
 	if config.EnableHTTPS {
@@ -108,9 +123,13 @@ func runServer(config conf.Config, handler *server.Server, logger *zap.Logger) {
 		err = server.ListenAndServe()
 	}
 
-	if err != nil {
-		logger.Fatal(err.Error(), zap.String(eventKey, "start server"))
+	if err != nil && err != http.ErrServerClosed {
+		log.Fatal(err.Error(), zap.String(eventKey, "listen and serve"))
 	}
+
+	<-doneCh
+
+	log.Info("server shutdown gracefully")
 }
 
 func printBuildInfo() {

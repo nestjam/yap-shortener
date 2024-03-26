@@ -3,8 +3,6 @@ package config
 import (
 	"encoding/json"
 	"flag"
-	"os"
-	"path"
 	"strconv"
 )
 
@@ -22,8 +20,6 @@ const (
 	defaultBaseURL    = "http://localhost:8080"
 )
 
-var defaultFileStoragePath string = path.Join(os.TempDir(), "short-url-db.json")
-
 // Environment определяет доступ к переменным среды.
 type Environment interface {
 	LookupEnv(key string) (string, bool)
@@ -32,9 +28,8 @@ type Environment interface {
 // New создает экземпляр конфигурации с настройками по умолчанию.
 func New() Config {
 	return Config{
-		ServerAddress:   defaultServerAddr,
-		BaseURL:         defaultBaseURL,
-		FileStoragePath: defaultFileStoragePath,
+		ServerAddress: defaultServerAddr,
+		BaseURL:       defaultBaseURL,
 	}
 }
 
