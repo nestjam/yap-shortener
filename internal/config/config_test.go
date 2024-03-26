@@ -17,9 +17,9 @@ func (t *testEnvironment) LookupEnv(key string) (string, bool) {
 
 func TestConfigFromArgs(t *testing.T) {
 	tests := []struct {
+		want Config
 		name string
 		args []string
-		want Config
 	}{
 		{
 			name: "args contain only app name",
