@@ -84,6 +84,16 @@ func TestConfigFromArgs(t *testing.T) {
 				DataSourceName: "database_name",
 			},
 		},
+		{
+			name: "args contain enable https flag",
+			args: []string{
+				"app.exe",
+				"-s",
+			},
+			want: Config{
+				EnableHTTPS: true,
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -168,6 +178,17 @@ func TestConfigFromEnv(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "env contains enable HTTPS flag",
+			want: Config{
+				EnableHTTPS: true,
+			},
+			env: &testEnvironment{
+				m: map[string]string{
+					"ENABLE_HTTPS": "true",
+				},
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -175,6 +196,17 @@ func TestConfigFromEnv(t *testing.T) {
 			assert.Equal(t, tt.want, got)
 		})
 	}
+
+	t.Run("failed to parse bool", func(t *testing.T) {
+		env := &testEnvironment{
+			m: map[string]string{
+				"ENABLE_HTTPS": "enable",
+			},
+		}
+
+		conf := New()
+		assert.Panics(t, func() { _ = conf.FromEnv(env) })
+	})
 }
 
 func TestNew(t *testing.T) {

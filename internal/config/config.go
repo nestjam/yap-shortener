@@ -4,6 +4,7 @@ import (
 	"flag"
 	"os"
 	"path"
+	"strconv"
 )
 
 // Config описывает конфигурацию сервера сокращения ссылок.
@@ -12,6 +13,7 @@ type Config struct {
 	BaseURL         string // базовый адрес сокращенной ссылки
 	FileStoragePath string // путь к файловому хранилищу сокращенных ссылок
 	DataSourceName  string // строка подключения к БД хранилища сокращенных ссылок
+	EnableHTTPS     bool   // включение HTTPS в веб-сервере
 }
 
 const (
@@ -42,6 +44,7 @@ func (conf Config) FromArgs(args []string) Config {
 	flagSet.StringVar(&conf.BaseURL, "b", conf.BaseURL, "base URL")
 	flagSet.StringVar(&conf.FileStoragePath, "f", conf.FileStoragePath, "file storage path")
 	flagSet.StringVar(&conf.DataSourceName, "d", conf.DataSourceName, "data source name")
+	flagSet.BoolVar(&conf.EnableHTTPS, "s", conf.EnableHTTPS, "enable HTTPS")
 
 	_ = flagSet.Parse(args[1:]) // exclude command name
 	return conf
@@ -63,6 +66,16 @@ func (conf Config) FromEnv(env Environment) Config {
 
 	if dsn, ok := env.LookupEnv("DATABASE_DSN"); ok {
 		conf.DataSourceName = dsn
+	}
+
+	if enableHTTPS, ok := env.LookupEnv("ENABLE_HTTPS"); ok {
+		enable, err := strconv.ParseBool(enableHTTPS)
+
+		if err != nil {
+			panic(err)
+		}
+
+		conf.EnableHTTPS = enable
 	}
 
 	return conf

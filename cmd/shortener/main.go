@@ -6,6 +6,7 @@ import (
 	"os"
 
 	"go.uber.org/zap"
+	"golang.org/x/crypto/acme/autocert"
 
 	conf "github.com/nestjam/yap-shortener/internal/config"
 	env "github.com/nestjam/yap-shortener/internal/config/environment"
@@ -35,16 +36,40 @@ func main() {
 
 	urlRemoved := server.NewURLRemover(ctx, doneCh, store, logger)
 
-	server := server.New(store, config.BaseURL,
+	handler := server.New(store, config.BaseURL,
 		server.WithLogger(logger),
 		server.WithShortenURLsMaxCount(shortenURLsMaxCount),
 		server.WithURLsRemover(urlRemoved))
-	listenAndServe(config.ServerAddress, server, logger)
+
+	runServer(config, handler, logger)
 }
 
-func listenAndServe(address string, server *server.Server, logger *zap.Logger) {
-	logger.Info("Running server", zap.String("address", address))
-	if err := http.ListenAndServe(address, server); err != nil {
+func runServer(config conf.Config, handler *server.Server, logger *zap.Logger) {
+	server := &http.Server{
+		Addr:    config.ServerAddress,
+		Handler: handler,
+	}
+
+	logger.Info("Running server", zap.String("address", config.ServerAddress))
+	var err error
+
+	if config.EnableHTTPS {
+		manager := &autocert.Manager{
+			Prompt:     autocert.AcceptTOS,
+			HostPolicy: autocert.HostWhitelist("shrt.ru"),
+		}
+		server.TLSConfig = manager.TLSConfig()
+		const (
+			certFile = ""
+			keyfile  = ""
+		)
+
+		err = server.ListenAndServeTLS(certFile, keyfile)
+	} else {
+		err = server.ListenAndServe()
+	}
+
+	if err != nil {
 		logger.Fatal(err.Error(), zap.String(eventKey, "start server"))
 	}
 }
