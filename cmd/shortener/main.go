@@ -29,9 +29,7 @@ var (
 func main() {
 	printBuildInfo()
 
-	config := conf.New().
-		FromArgs(os.Args).
-		FromEnv(env.New())
+	config := getConfig()
 
 	logger, tearDownLogger := factory.NewLogger()
 	defer tearDownLogger()
@@ -51,6 +49,38 @@ func main() {
 		server.WithURLsRemover(urlRemoved))
 
 	runServer(config, handler, logger)
+}
+
+func getConfig() conf.Config {
+	config := conf.New()
+
+	filePath := getConfigFilePath()
+	if filePath != "" {
+		data, err := os.ReadFile(filePath)
+
+		if err != nil {
+			panic(err)
+		}
+
+		config = config.FromJSON(data)
+	}
+
+	config = config.
+		FromArgs(os.Args).
+		FromEnv(env.New())
+
+	return config
+}
+
+func getConfigFilePath() string {
+	path := conf.GetConfigFileFromArgs(os.Args)
+
+	pathFromEnv := conf.GetConfigFileFromEnv(env.New())
+	if pathFromEnv != "" {
+		path = pathFromEnv
+	}
+
+	return path
 }
 
 func runServer(config conf.Config, handler *server.Server, logger *zap.Logger) {

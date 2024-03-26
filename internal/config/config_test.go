@@ -222,3 +222,93 @@ func TestNew(t *testing.T) {
 		assert.Equal(t, want, got)
 	})
 }
+
+func TestFromJSON(t *testing.T) {
+	t.Run("from json", func(t *testing.T) {
+		want := Config{
+			ServerAddress:   "localhost:8080",
+			BaseURL:         "http://localhost",
+			FileStoragePath: "/path/to/file.db",
+			EnableHTTPS:     true,
+		}
+		const json = `{
+	"server_address": "localhost:8080",
+	"base_url": "http://localhost",
+	"file_storage_path": "/path/to/file.db",
+	"database_dsn": "",
+	"enable_https": true
+} `
+
+		got := Config{}.FromJSON([]byte(json))
+
+		assert.Equal(t, want, got)
+	})
+
+	t.Run("failed to parse json", func(t *testing.T) {
+		const json = `{
+	"server_address": "localhost:8080"{{,
+	"base_url": "http://localhost",
+	"file_storage_path": "/path/to/file.db",
+	"database_dsn": "",
+	"enable_
+} `
+
+		assert.Panics(t, func() { _ = Config{}.FromJSON([]byte(json)) })
+	})
+}
+
+func TestGetConfigFileFromArgs(t *testing.T) {
+	t.Run("file path from cmd arg", func(t *testing.T) {
+		args := []string{
+			"app.exe",
+			"-c",
+			"/path/to/file.json",
+			"-d",
+			"database_name",
+		}
+		const want = "/path/to/file.json"
+
+		got := GetConfigFileFromArgs(args)
+
+		assert.Equal(t, want, got)
+	})
+
+	t.Run("file path is not in cmd args", func(t *testing.T) {
+		args := []string{
+			"app.exe",
+			"-d",
+			"database_name",
+		}
+
+		path := GetConfigFileFromArgs(args)
+
+		assert.Equal(t, "", path)
+	})
+}
+
+func TestGetConfigFileFromEnv(t *testing.T) {
+	t.Run("file path from env", func(t *testing.T) {
+		env := &testEnvironment{
+			m: map[string]string{
+				"CONFIG": "/path/to/file.json",
+			},
+		}
+		const want = "/path/to/file.json"
+
+		got := GetConfigFileFromEnv(env)
+
+		assert.Equal(t, want, got)
+	})
+
+	t.Run("file path is not in env", func(t *testing.T) {
+		env := &testEnvironment{
+			m: map[string]string{
+				"PATH": "/path/to/file.json",
+			},
+		}
+
+		got := GetConfigFileFromEnv(env)
+
+		assert.Equal(t, "", got)
+	})
+}
