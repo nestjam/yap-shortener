@@ -9,7 +9,6 @@ import (
 	"syscall"
 
 	"go.uber.org/zap"
-	"golang.org/x/crypto/acme/autocert"
 
 	conf "github.com/nestjam/yap-shortener/internal/config"
 	env "github.com/nestjam/yap-shortener/internal/config/environment"
@@ -108,14 +107,9 @@ func runServer(ctx context.Context, config conf.Config, handler *server.Server, 
 	var err error
 
 	if config.EnableHTTPS {
-		manager := &autocert.Manager{
-			Prompt:     autocert.AcceptTOS,
-			HostPolicy: autocert.HostWhitelist("shrt.ru"),
-		}
-		server.TLSConfig = manager.TLSConfig()
 		const (
-			certFile = ""
-			keyfile  = ""
+			certFile = "servercert.crt"
+			keyfile  = "servercert.key"
 		)
 
 		err = server.ListenAndServeTLS(certFile, keyfile)
