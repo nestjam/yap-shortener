@@ -14,6 +14,7 @@ import (
 	"github.com/pkg/errors"
 )
 
+// Generate generates celf-signed certificate and private key.
 func Generate() (certPEM bytes.Buffer, privateKeyPEM bytes.Buffer, err error) {
 	const (
 		op           = "generate"
