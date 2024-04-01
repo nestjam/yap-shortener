@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"net/http"
@@ -10,10 +11,12 @@ import (
 
 	"go.uber.org/zap"
 
+	"github.com/nestjam/yap-shortener/internal/cert"
 	conf "github.com/nestjam/yap-shortener/internal/config"
 	env "github.com/nestjam/yap-shortener/internal/config/environment"
 	factory "github.com/nestjam/yap-shortener/internal/factory"
 	"github.com/nestjam/yap-shortener/internal/server"
+	"github.com/pkg/errors"
 )
 
 const (
@@ -112,6 +115,12 @@ func runServer(ctx context.Context, config conf.Config, handler *server.Server, 
 			keyfile  = "servercert.key"
 		)
 
+		if !exists(certFile) || !exists(keyfile) {
+			if err := generateAndSave(certFile, keyfile); err != nil {
+				log.Fatal(err.Error())
+			}
+		}
+
 		err = server.ListenAndServeTLS(certFile, keyfile)
 	} else {
 		err = server.ListenAndServe()
@@ -124,6 +133,39 @@ func runServer(ctx context.Context, config conf.Config, handler *server.Server, 
 	<-doneCh
 
 	log.Info("server shutdown gracefully")
+}
+
+func generateAndSave(certFile, keyfile string) error {
+	const op = "generate and save"
+	cert, key, err := cert.Generate()
+	if err != nil {
+		return errors.Wrap(err, op)
+	}
+
+	if err = writeFile(certFile, cert); err != nil {
+		return errors.Wrap(err, op)
+	}
+
+	if err = writeFile(keyfile, key); err != nil {
+		return errors.Wrap(err, op)
+	}
+
+	return nil
+}
+
+func writeFile(name string, data bytes.Buffer) error {
+	const perm os.FileMode = 0600
+	err := os.WriteFile(name, data.Bytes(), perm)
+	if err != nil {
+		return errors.Wrap(err, "write file")
+	}
+
+	return nil
+}
+
+func exists(file string) bool {
+	_, err := os.Stat(file)
+	return err == nil
 }
 
 func printBuildInfo() {
