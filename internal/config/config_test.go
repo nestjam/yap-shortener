@@ -94,6 +94,17 @@ func TestConfigFromArgs(t *testing.T) {
 				EnableHTTPS: true,
 			},
 		},
+		{
+			name: "args contain trusted subnet",
+			args: []string{
+				"app.exe",
+				"-t",
+				"127.0.0.0/24",
+			},
+			want: Config{
+				TrustedSubnet: "127.0.0.0/24",
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -186,6 +197,17 @@ func TestConfigFromEnv(t *testing.T) {
 			env: &testEnvironment{
 				m: map[string]string{
 					"ENABLE_HTTPS": "true",
+				},
+			},
+		},
+		{
+			name: "env contains trusted subnet",
+			want: Config{
+				TrustedSubnet: "127.0.0.0/24",
+			},
+			env: &testEnvironment{
+				m: map[string]string{
+					"TRUSTED_SUBNET": "127.0.0.0/24",
 				},
 			},
 		},

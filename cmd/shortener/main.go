@@ -51,7 +51,8 @@ func main() {
 	handler := server.New(store, config.BaseURL,
 		server.WithLogger(logger),
 		server.WithShortenURLsMaxCount(shortenURLsMaxCount),
-		server.WithURLsRemover(urlRemoved))
+		server.WithURLsRemover(urlRemoved),
+		server.WithTrustedSubnet(config.TrustedSubnet))
 
 	runServer(ctx, config, handler, logger)
 }

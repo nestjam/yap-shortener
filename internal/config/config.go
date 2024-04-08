@@ -8,11 +8,12 @@ import (
 
 // Config описывает конфигурацию сервера сокращения ссылок.
 type Config struct {
-	ServerAddress   string `json:"server_address"`    // адрес сервера
-	BaseURL         string `json:"base_url"`          // базовый адрес сокращенной ссылки
-	FileStoragePath string `json:"file_storage_path"` // путь к файловому хранилищу сокращенных ссылок
-	DataSourceName  string `json:"database_dsn"`      // строка подключения к БД хранилища сокращенных ссылок
-	EnableHTTPS     bool   `json:"enable_https"`      // включение HTTPS в веб-сервере
+	ServerAddress   string `json:"server_address"`
+	BaseURL         string `json:"base_url"`
+	FileStoragePath string `json:"file_storage_path"`
+	DataSourceName  string `json:"database_dsn"`
+	TrustedSubnet   string
+	EnableHTTPS     bool `json:"enable_https"`
 }
 
 const (
@@ -48,6 +49,7 @@ func parseArgs(conf *Config, confFilePath *string, args []string) {
 	flagSet.StringVar(&conf.FileStoragePath, "f", conf.FileStoragePath, "file storage path")
 	flagSet.StringVar(&conf.DataSourceName, "d", conf.DataSourceName, "data source name")
 	flagSet.BoolVar(&conf.EnableHTTPS, "s", conf.EnableHTTPS, "enable HTTPS")
+	flagSet.StringVar(&conf.TrustedSubnet, "t", "", "trusted subnet")
 	flagSet.StringVar(confFilePath, "c", "", "config file path")
 
 	_ = flagSet.Parse(args[1:]) // exclude command name
@@ -79,6 +81,10 @@ func (conf Config) FromEnv(env Environment) Config {
 		}
 
 		conf.EnableHTTPS = enable
+	}
+
+	if trustedSubnet, ok := env.LookupEnv("TRUSTED_SUBNET"); ok {
+		conf.TrustedSubnet = trustedSubnet
 	}
 
 	return conf
