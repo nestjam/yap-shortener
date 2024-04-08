@@ -1,0 +1,33 @@
+syntax = "proto3";
+
+package shortener;
+
+option go_package = "github.com/nestjam/yap-shortener/proto/gen/shortener";
+
+message PingRequest {}
+
+message PingResponse {
+  bool result = 1;
+}
+
+message GetOriginalURLRequest {
+  string Key = 1;
+}
+
+message GetOriginalURLResponse {
+  string OriginalURL = 1;
+}
+
+message ShortenURLRequest {
+  string URL = 1;
+}
+
+message ShortenURLResponse {
+  string ShortenedURL = 1;
+}
+
+service Shortener {
+  rpc Ping(PingRequest) returns (PingResponse);
+  rpc GetOriginalURL(GetOriginalURLRequest) returns (GetOriginalURLResponse);
+  rpc ShortenURL(ShortenURLRequest) returns (ShortenURLResponse);
+}
