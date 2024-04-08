@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"strconv"
 	"time"
@@ -30,21 +31,23 @@ const (
 	applicationGZIP                = "application/x-gzip"
 	urlIsEmptyMessage              = "url is empty"
 	batchIsEmptyMessage            = "batch is empty"
-	failedToWriterResponseMessage  = "failed to prepare response"
+	failedToWriteResponseMessage   = "failed to write response"
 	failedToStoreURLMessage        = "failed to store url"
 	failedToParseRequestMessage    = "failed to parse request"
 	failedToPrepareResponseMessage = "failed to prepare response"
+	failedToParseCIDRMessage       = "failed to parse trusted subnet address"
 	secretKey                      = "supersecretkey"
 	tokenExp                       = time.Hour * 3
 )
 
 // Server предоставляет возможность сокращать URL, получать исходный и управлять сокращенными URL.
 type Server struct {
-	logger              *zap.Logger
-	urlRemover          *URLRemover
 	store               domain.URLStore
 	router              chi.Router
+	logger              *zap.Logger
+	urlRemover          *URLRemover
 	baseURL             string
+	trustedSubnet       string
 	shortenURLsMaxCount int
 }
 
@@ -74,6 +77,12 @@ type ShortURL struct {
 type UserURL struct {
 	ShortURL    string `json:"short_url"`    // сокращенный URL
 	OriginalURL string `json:"original_url"` // исходный URL
+}
+
+// Stats содержит количество сокращенных URL и количество пользователей в сервисе.
+type Stats struct {
+	URLs  int `json:"urls"`  // количество сокращённых URL в сервисе
+	Users int `json:"users"` // количество пользователей в сервисе
 }
 
 // Option определяет опцию настройки сервера.
@@ -131,6 +140,10 @@ func New(store domain.URLStore, baseURL string, options ...Option) *Server {
 		r.Use(middleware.Auth(authorizer))
 
 		r.Get(apiUserURLsPath, s.getUserURLs)
+	})
+
+	r.Group(func(r chi.Router) {
+		r.Get("/api/internal/stats", s.getStats)
 	})
 
 	return s
@@ -198,7 +211,7 @@ func (s *Server) shorten(w http.ResponseWriter, r *http.Request) {
 	_, err = w.Write([]byte(joinPath(s.baseURL, shortURL)))
 
 	if err != nil {
-		internalError(w, failedToWriterResponseMessage)
+		internalError(w, failedToWriteResponseMessage)
 		return
 	}
 }
@@ -253,7 +266,7 @@ func (s *Server) shortenAPI(w http.ResponseWriter, r *http.Request) {
 	_, err = w.Write(content)
 
 	if err != nil {
-		internalError(w, failedToWriterResponseMessage)
+		internalError(w, failedToWriteResponseMessage)
 		return
 	}
 }
@@ -329,7 +342,7 @@ func (s *Server) shortenURLs(w http.ResponseWriter, r *http.Request) {
 	_, err = w.Write(content)
 
 	if err != nil {
-		internalError(w, failedToWriterResponseMessage)
+		internalError(w, failedToWriteResponseMessage)
 		return
 	}
 }
@@ -391,6 +404,47 @@ func (s *Server) deleteUserURLs(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusAccepted)
 }
 
+func (s *Server) getStats(w http.ResponseWriter, r *http.Request) {
+	if s.trustedSubnet == "" {
+		w.WriteHeader(http.StatusForbidden)
+		return
+	}
+
+	_, ipNet, err := net.ParseCIDR(s.trustedSubnet)
+	if err != nil {
+		internalError(w, failedToParseCIDRMessage)
+		return
+	}
+
+	ip := net.ParseIP(r.Header.Get("X-Real-IP"))
+
+	if !ipNet.Contains(ip) {
+		w.WriteHeader(http.StatusForbidden)
+		return
+	}
+
+	ctx := r.Context()
+	stats := Stats{}
+	stats.URLs, stats.Users, err = s.store.GetURLsAndUsersCount(ctx)
+	if err != nil {
+		internalError(w, "failed to get stats")
+		return
+	}
+
+	content, err := json.Marshal(stats)
+	if err != nil {
+		internalError(w, failedToPrepareResponseMessage)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	_, err = w.Write(content)
+	if err != nil {
+		internalError(w, failedToWriteResponseMessage)
+		return
+	}
+}
+
 func isTooManyURLs(urls []OriginalURL, maxCount int) bool {
 	return maxCount > 0 && len(urls) > maxCount
 }
@@ -433,5 +487,12 @@ func WithShortenURLsMaxCount(count int) Option {
 func WithURLsRemover(remover *URLRemover) Option {
 	return func(s *Server) {
 		s.urlRemover = remover
+	}
+}
+
+// WithTrustedSubnet задает доверенную подсеть.
+func WithTrustedSubnet(subnet string) Option {
+	return func(s *Server) {
+		s.trustedSubnet = subnet
 	}
 }

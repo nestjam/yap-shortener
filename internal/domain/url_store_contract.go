@@ -243,4 +243,50 @@ func (c URLStoreContract) Test(t *testing.T) {
 
 		assert.Empty(t, userURLs)
 	})
+
+	t.Run("get urls and users count", func(t *testing.T) {
+		t.Run("store is empty", func(t *testing.T) {
+			sut, tearDown := c.NewURLStore()
+			t.Cleanup(tearDown)
+			ctx := context.Background()
+
+			urlsCount, usersCount, err := sut.GetURLsAndUsersCount(ctx)
+
+			require.NoError(t, err)
+			assert.Equal(t, 0, urlsCount)
+			assert.Equal(t, 0, usersCount)
+		})
+
+		t.Run("store urls and users", func(t *testing.T) {
+			sut, tearDown := c.NewURLStore()
+			t.Cleanup(tearDown)
+			ctx := context.Background()
+			const (
+				wantURLsCount  = 2
+				wantUsersCount = 2
+			)
+
+			pair := URLPair{
+				OriginalURL: "http://example.com",
+				ShortURL:    "abc",
+			}
+			userID := NewUserID()
+			err := sut.AddURL(ctx, pair, userID)
+			require.NoError(t, err)
+
+			pair = URLPair{
+				OriginalURL: "http://example2.com",
+				ShortURL:    "abc2",
+			}
+			userID = NewUserID()
+			err = sut.AddURL(ctx, pair, userID)
+			require.NoError(t, err)
+
+			urlsCount, usersCount, err := sut.GetURLsAndUsersCount(ctx)
+
+			require.NoError(t, err)
+			assert.Equal(t, wantURLsCount, urlsCount)
+			assert.Equal(t, wantUsersCount, usersCount)
+		})
+	})
 }

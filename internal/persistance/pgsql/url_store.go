@@ -299,3 +299,25 @@ func (u *PostgresURLStore) DeleteUserURLs(ctx context.Context, shortURLs []strin
 
 	return nil
 }
+
+// GetURLsAndUsersCount возвращает количество сокращенных ссылок и пользователей.
+func (u *PostgresURLStore) GetURLsAndUsersCount(ctx context.Context) (urlsCount, usersCount int, err error) {
+	const op = "get URLs and users count"
+	conn, err := u.pool.Acquire(ctx)
+	defer conn.Release()
+
+	if err != nil {
+		err = errors.Wrapf(err, op)
+		return
+	}
+
+	row := conn.QueryRow(ctx, "SELECT COUNT(short_url) AS urls_count, COUNT(DISTINCT user_id) AS users_count FROM url")
+	err = row.Scan(&urlsCount, &usersCount)
+
+	if err != nil {
+		err = errors.Wrapf(err, op)
+		return
+	}
+
+	return
+}

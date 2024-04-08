@@ -144,3 +144,22 @@ func (u *InmemoryURLStore) DeleteUserURLs(ctx context.Context, shortURLs []strin
 
 	return nil
 }
+
+// GetURLsAndUsersCount возвращает количество сокращенных ссылок и пользователей.
+func (u *InmemoryURLStore) GetURLsAndUsersCount(ctx context.Context) (urlsCount, usersCount int, err error) {
+	users := make(map[domain.UserID]struct{})
+
+	u.m.Range(func(key, value any) bool {
+		urlsCount++
+
+		rec, _ := value.(urlRecord)
+		if _, ok := users[rec.userID]; !ok {
+			users[rec.userID] = struct{}{}
+		}
+
+		return true
+	})
+
+	usersCount = len(users)
+	return
+}
