@@ -11,12 +11,13 @@ import (
 
 	"go.uber.org/zap"
 
+	"github.com/pkg/errors"
+
 	"github.com/nestjam/yap-shortener/internal/cert"
 	conf "github.com/nestjam/yap-shortener/internal/config"
 	env "github.com/nestjam/yap-shortener/internal/config/environment"
 	factory "github.com/nestjam/yap-shortener/internal/factory"
 	"github.com/nestjam/yap-shortener/internal/server"
-	"github.com/pkg/errors"
 )
 
 const (

@@ -450,7 +450,7 @@ func isTooManyURLs(urls []OriginalURL, maxCount int) bool {
 }
 
 func forbidden(w http.ResponseWriter) {
-	http.Error(w, "to many urls", http.StatusForbidden)
+	http.Error(w, "too many urls", http.StatusForbidden)
 }
 
 func joinPath(base, elem string) string {

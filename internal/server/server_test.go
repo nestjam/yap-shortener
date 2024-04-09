@@ -854,7 +854,7 @@ func assertUserURLs(t *testing.T, want []domain.URLPair, r io.Reader) {
 	require.NoError(t, err, "unable to parse response from server: %v", err)
 
 	urls := make([]UserURL, len(want))
-	for i := 0; i < len(got); i++ {
+	for i := 0; i < len(want); i++ {
 		urls[i].OriginalURL = want[i].OriginalURL
 		urls[i].ShortURL = baseURL + "/" + want[i].ShortURL
 	}

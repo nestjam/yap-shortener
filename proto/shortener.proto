@@ -26,8 +26,43 @@ message ShortenURLResponse {
   string ShortenedURL = 1;
 }
 
+message CorrelatedURL {
+  string URL = 1;
+  string CorrelationID = 2;
+}
+
+message ShortenURLsRequest {
+  repeated CorrelatedURL URLs = 1;
+}
+
+message ShortenURLsResponse {
+  repeated CorrelatedURL URLs = 1;
+}
+
+message UserURL {
+  string ShortenedURL = 1;
+  string OriginalURL = 2;
+}
+
+message GetUserURLsRequest {
+}
+
+message GetUserURLsResponse {
+  repeated UserURL URLs = 1;
+}
+
+message DeleteUserURLsRequest {
+  repeated string Keys = 1;
+}
+
+message DeleteUserURLsResponse {
+}
+
 service Shortener {
   rpc Ping(PingRequest) returns (PingResponse);
   rpc GetOriginalURL(GetOriginalURLRequest) returns (GetOriginalURLResponse);
   rpc ShortenURL(ShortenURLRequest) returns (ShortenURLResponse);
+  rpc ShortenURLs(ShortenURLsRequest) returns (ShortenURLsResponse);
+  rpc GetUserURLs(GetUserURLsRequest) returns (GetUserURLsResponse);
+  rpc GetDeleteUserURLs(DeleteUserURLsRequest) returns (DeleteUserURLsResponse);
 }
