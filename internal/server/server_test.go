@@ -610,7 +610,7 @@ func (u URLShortenerTest) Test(t *testing.T) {
 			sut.ServeHTTP(response, request)
 
 			assert.Equal(t, http.StatusForbidden, response.Code)
-			assertBody(t, "to many urls", response)
+			assertBody(t, "too many urls", response)
 		})
 	})
 
