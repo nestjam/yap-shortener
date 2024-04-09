@@ -15,11 +15,13 @@ import (
 
 	"github.com/pkg/errors"
 
+	"github.com/nestjam/yap-shortener/internal/auth"
 	"github.com/nestjam/yap-shortener/internal/cert"
 	conf "github.com/nestjam/yap-shortener/internal/config"
 	env "github.com/nestjam/yap-shortener/internal/config/environment"
 	"github.com/nestjam/yap-shortener/internal/domain"
 	factory "github.com/nestjam/yap-shortener/internal/factory"
+	"github.com/nestjam/yap-shortener/internal/interceptor"
 	httpserver "github.com/nestjam/yap-shortener/internal/server"
 	grpcserver "github.com/nestjam/yap-shortener/internal/server/grpc"
 	pb "github.com/nestjam/yap-shortener/proto"
@@ -111,11 +113,14 @@ func main() {
 }
 
 func newGRPCServer(c conf.Config, store domain.URLStore, remover *httpserver.URLRemover) *grpc.Server {
-	s := grpc.NewServer()
+	userAuth := auth.New(auth.SecretKey, auth.TokenExp)
+	authInterceptor := interceptor.NewAuth(userAuth)
+	s := grpc.NewServer(grpc.UnaryInterceptor(authInterceptor.Handle))
 
-	pb.RegisterShortenerServer(s, grpcserver.New(store, c.BaseURL,
+	srv := grpcserver.New(store, c.BaseURL,
 		grpcserver.WithShortenURLsMaxCount(shortenURLsMaxCount),
-		grpcserver.WithURLsRemover(remover)))
+		grpcserver.WithURLsRemover(remover))
+	pb.RegisterShortenerServer(s, srv)
 
 	return s
 }

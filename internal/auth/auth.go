@@ -12,7 +12,11 @@ import (
 	"github.com/nestjam/yap-shortener/internal/domain"
 )
 
-const userAuthCookieName = "userauth"
+const (
+	userAuthCookieName = "userauth"
+	SecretKey          = "supersecretkey"
+	TokenExp           = time.Hour * 3
+)
 
 // Claims определяет зарегистрированные утверждения и данные пользователя.
 type Claims struct {
@@ -78,7 +82,7 @@ func (a *UserAuth) ParseJWT(tokenString string) (domain.UserID, error) {
 // CreateCookie возвращает Cookie с идентификатором пользователя.
 func (a *UserAuth) CreateCookie(userID domain.UserID) (*http.Cookie, error) {
 	const op = "create cookie"
-	token, err := a.buildJWT(userID)
+	token, err := a.BuildJWT(userID)
 
 	if err != nil {
 		return nil, errors.Wrap(err, op)
@@ -93,7 +97,7 @@ func (a *UserAuth) CreateCookie(userID domain.UserID) (*http.Cookie, error) {
 	return &cookie, nil
 }
 
-func (a *UserAuth) buildJWT(userID domain.UserID) (string, error) {
+func (a *UserAuth) BuildJWT(userID domain.UserID) (string, error) {
 	const op = "build jwt"
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, Claims{
 		RegisteredClaims: jwt.RegisteredClaims{

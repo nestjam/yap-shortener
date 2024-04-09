@@ -472,6 +472,21 @@ func (u URLShortenerTest) Test(t *testing.T) {
 			assertCode(t, codes.Internal, err)
 		})
 	})
+
+	t.Run("login", func(t *testing.T) {
+		urlStore, cleanup := u.CreateDependencies()
+		t.Cleanup(cleanup)
+		sut := New(urlStore, baseURL)
+		ctx := context.Background()
+		request := &pb.LoginRequest{
+			Username: "user",
+		}
+
+		resp, err := sut.Login(ctx, request)
+
+		require.NoError(t, err)
+		assert.True(t, len(resp.Token) > 0)
+	})
 }
 
 func newBatch(urls []string) []*pb.CorrelatedURL {

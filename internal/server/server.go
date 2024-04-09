@@ -8,7 +8,6 @@ import (
 	"net"
 	"net/http"
 	"strconv"
-	"time"
 
 	chimiddleware "github.com/go-chi/chi/middleware"
 	"github.com/go-chi/chi/v5"
@@ -36,8 +35,6 @@ const (
 	failedToParseRequestMessage    = "failed to parse request"
 	failedToPrepareResponseMessage = "failed to prepare response"
 	failedToParseCIDRMessage       = "failed to parse trusted subnet address"
-	secretKey                      = "supersecretkey"
-	tokenExp                       = time.Hour * 3
 )
 
 // Server предоставляет возможность сокращать URL, получать исходный и управлять сокращенными URL.
@@ -102,7 +99,7 @@ func New(store domain.URLStore, baseURL string, options ...Option) *Server {
 		opt(s)
 	}
 
-	authorizer := auth.New(secretKey, tokenExp)
+	authorizer := auth.New(auth.SecretKey, auth.TokenExp)
 	const apiUserURLsPath = "/api/user/urls"
 
 	r.Use(middleware.ResponseLogger(s.logger))

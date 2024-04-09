@@ -9,6 +9,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
+	"github.com/nestjam/yap-shortener/internal/auth"
 	"github.com/nestjam/yap-shortener/internal/domain"
 	"github.com/nestjam/yap-shortener/internal/server"
 	"github.com/nestjam/yap-shortener/internal/shortener"
@@ -32,6 +33,7 @@ type Server struct {
 	pb.UnimplementedShortenerServer
 	store               domain.URLStore
 	urlRemover          *server.URLRemover
+	userAuth            *auth.UserAuth
 	baseURL             string
 	shortenURLsMaxCount int
 }
@@ -56,8 +58,9 @@ func WithURLsRemover(remover *server.URLRemover) Option {
 // New создает сервер. Конструктор принимает на вход хранилище ссылок, базовую ссылку и набор опций.
 func New(store domain.URLStore, baseURL string, options ...Option) *Server {
 	s := &Server{
-		store:   store,
-		baseURL: baseURL,
+		store:    store,
+		baseURL:  baseURL,
+		userAuth: auth.New(auth.SecretKey, auth.TokenExp),
 	}
 
 	for _, opt := range options {
@@ -65,6 +68,19 @@ func New(store domain.URLStore, baseURL string, options ...Option) *Server {
 	}
 
 	return s
+}
+
+// Login выполняет авторизацию пользователя.
+func (s *Server) Login(ctx context.Context, request *pb.LoginRequest) (*pb.LoginResponse, error) {
+	// Сгенерируем новый ID, т.к. пользователи нигде не хранятся
+	userID := domain.NewUserID()
+
+	token, err := s.userAuth.BuildJWT(userID)
+	if err != nil {
+		return nil, errors.Wrap(err, "login")
+	}
+
+	return &pb.LoginResponse{Token: token}, nil
 }
 
 // Ping проверяет доступность сервиса.

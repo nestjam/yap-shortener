@@ -58,7 +58,17 @@ message DeleteUserURLsRequest {
 message DeleteUserURLsResponse {
 }
 
+message LoginRequest {
+  string Username = 1;
+  string Password = 2;
+}
+
+message LoginResponse {
+  string Token = 1;
+}
+
 service Shortener {
+  rpc Login(LoginRequest) returns (LoginResponse);
   rpc Ping(PingRequest) returns (PingResponse);
   rpc GetOriginalURL(GetOriginalURLRequest) returns (GetOriginalURLResponse);
   rpc ShortenURL(ShortenURLRequest) returns (ShortenURLResponse);

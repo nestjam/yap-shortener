@@ -989,7 +989,7 @@ func newPutRequest(url string) *http.Request {
 func newGetUserURLsRequest(t *testing.T, userID domain.UserID) *http.Request {
 	t.Helper()
 	r := httptest.NewRequest(http.MethodGet, userURLsPath, nil)
-	a := auth.New(secretKey, tokenExp)
+	a := auth.New(auth.SecretKey, auth.TokenExp)
 
 	cookie, err := a.CreateCookie(userID)
 	require.NoError(t, err)
@@ -1011,7 +1011,7 @@ func newDeleteUserURLsRequest(t *testing.T, userURLs []domain.URLPair, userID do
 	buf := bytes.NewBuffer(body)
 	r := httptest.NewRequest(http.MethodDelete, userURLsPath, buf)
 	r.Header.Set(contentTypeHeader, applicationJSON)
-	a := auth.New(secretKey, tokenExp)
+	a := auth.New(auth.SecretKey, auth.TokenExp)
 
 	cookie, err := a.CreateCookie(userID)
 	require.NoError(t, err)
@@ -1026,7 +1026,7 @@ func newDeleteUserURLsInvalidRequest(t *testing.T, userID domain.UserID) *http.R
 	buf := bytes.NewBufferString("[{ Invalid: true ]}")
 	r := httptest.NewRequest(http.MethodDelete, userURLsPath, buf)
 	r.Header.Set(contentTypeHeader, applicationJSON)
-	a := auth.New(secretKey, tokenExp)
+	a := auth.New(auth.SecretKey, auth.TokenExp)
 
 	cookie, err := a.CreateCookie(userID)
 	require.NoError(t, err)

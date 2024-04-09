@@ -19,6 +19,7 @@ import (
 const _ = grpc.SupportPackageIsVersion7
 
 const (
+	Shortener_Login_FullMethodName             = "/shortener.Shortener/Login"
 	Shortener_Ping_FullMethodName              = "/shortener.Shortener/Ping"
 	Shortener_GetOriginalURL_FullMethodName    = "/shortener.Shortener/GetOriginalURL"
 	Shortener_ShortenURL_FullMethodName        = "/shortener.Shortener/ShortenURL"
@@ -31,6 +32,7 @@ const (
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type ShortenerClient interface {
+	Login(ctx context.Context, in *LoginRequest, opts ...grpc.CallOption) (*LoginResponse, error)
 	Ping(ctx context.Context, in *PingRequest, opts ...grpc.CallOption) (*PingResponse, error)
 	GetOriginalURL(ctx context.Context, in *GetOriginalURLRequest, opts ...grpc.CallOption) (*GetOriginalURLResponse, error)
 	ShortenURL(ctx context.Context, in *ShortenURLRequest, opts ...grpc.CallOption) (*ShortenURLResponse, error)
@@ -45,6 +47,15 @@ type shortenerClient struct {
 
 func NewShortenerClient(cc grpc.ClientConnInterface) ShortenerClient {
 	return &shortenerClient{cc}
+}
+
+func (c *shortenerClient) Login(ctx context.Context, in *LoginRequest, opts ...grpc.CallOption) (*LoginResponse, error) {
+	out := new(LoginResponse)
+	err := c.cc.Invoke(ctx, Shortener_Login_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
 }
 
 func (c *shortenerClient) Ping(ctx context.Context, in *PingRequest, opts ...grpc.CallOption) (*PingResponse, error) {
@@ -105,6 +116,7 @@ func (c *shortenerClient) GetDeleteUserURLs(ctx context.Context, in *DeleteUserU
 // All implementations must embed UnimplementedShortenerServer
 // for forward compatibility
 type ShortenerServer interface {
+	Login(context.Context, *LoginRequest) (*LoginResponse, error)
 	Ping(context.Context, *PingRequest) (*PingResponse, error)
 	GetOriginalURL(context.Context, *GetOriginalURLRequest) (*GetOriginalURLResponse, error)
 	ShortenURL(context.Context, *ShortenURLRequest) (*ShortenURLResponse, error)
@@ -118,6 +130,9 @@ type ShortenerServer interface {
 type UnimplementedShortenerServer struct {
 }
 
+func (UnimplementedShortenerServer) Login(context.Context, *LoginRequest) (*LoginResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method Login not implemented")
+}
 func (UnimplementedShortenerServer) Ping(context.Context, *PingRequest) (*PingResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Ping not implemented")
 }
@@ -147,6 +162,24 @@ type UnsafeShortenerServer interface {
 
 func RegisterShortenerServer(s grpc.ServiceRegistrar, srv ShortenerServer) {
 	s.RegisterService(&Shortener_ServiceDesc, srv)
+}
+
+func _Shortener_Login_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(LoginRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ShortenerServer).Login(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Shortener_Login_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ShortenerServer).Login(ctx, req.(*LoginRequest))
+	}
+	return interceptor(ctx, in, info, handler)
 }
 
 func _Shortener_Ping_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
@@ -264,6 +297,10 @@ var Shortener_ServiceDesc = grpc.ServiceDesc{
 	ServiceName: "shortener.Shortener",
 	HandlerType: (*ShortenerServer)(nil),
 	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "Login",
+			Handler:    _Shortener_Login_Handler,
+		},
 		{
 			MethodName: "Ping",
 			Handler:    _Shortener_Ping_Handler,
