@@ -51,7 +51,8 @@ func (s *Server) Ping(ctx context.Context, request *pb.PingRequest) (*pb.PingRes
 }
 
 // GetOriginalURL возвращает исходный URL по ключу.
-//nolint: lll
+//
+//nolint:lll // naturally long name
 func (s *Server) GetOriginalURL(ctx context.Context, request *pb.GetOriginalURLRequest) (*pb.GetOriginalURLResponse, error) {
 	const op = "get original url"
 	url, err := s.store.GetOriginalURL(ctx, request.Key)
@@ -67,9 +68,10 @@ func (s *Server) GetOriginalURL(ctx context.Context, request *pb.GetOriginalURLR
 	return response, nil
 }
 
+// ShortenURL возвращает сокращенный URL.
 func (s *Server) ShortenURL(ctx context.Context, request *pb.ShortenURLRequest) (*pb.ShortenURLResponse, error) {
 	const op = "shorten url"
-	
+
 	if len(request.URL) == 0 {
 		return nil, errors.Wrap(status.Error(codes.InvalidArgument, urlIsEmptyMessage), op)
 	}
