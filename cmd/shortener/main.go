@@ -4,25 +4,32 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
 
 	"go.uber.org/zap"
+	"google.golang.org/grpc"
 
 	"github.com/pkg/errors"
 
 	"github.com/nestjam/yap-shortener/internal/cert"
 	conf "github.com/nestjam/yap-shortener/internal/config"
 	env "github.com/nestjam/yap-shortener/internal/config/environment"
+	"github.com/nestjam/yap-shortener/internal/domain"
 	factory "github.com/nestjam/yap-shortener/internal/factory"
-	"github.com/nestjam/yap-shortener/internal/server"
+	httpserver "github.com/nestjam/yap-shortener/internal/server"
+	grpcserver "github.com/nestjam/yap-shortener/internal/server/grpc"
+	pb "github.com/nestjam/yap-shortener/proto"
 )
 
 const (
-	eventKey            = "event"
+	certFile            = "servercert.crt"
+	keyfile             = "servercert.key"
 	shortenURLsMaxCount = 1000
+	address             = "address"
 )
 
 var (
@@ -46,16 +53,84 @@ func main() {
 	defer tearDownStorage()
 
 	doneCh := make(chan struct{})
-	defer close(doneCh)
-	urlRemoved := server.NewURLRemover(ctx, doneCh, store, logger)
 
-	handler := server.New(store, config.BaseURL,
-		server.WithLogger(logger),
-		server.WithShortenURLsMaxCount(shortenURLsMaxCount),
-		server.WithURLsRemover(urlRemoved),
-		server.WithTrustedSubnet(config.TrustedSubnet))
+	urlRemover := httpserver.NewURLRemover(ctx, doneCh, store, logger)
 
-	runServer(ctx, config, handler, logger)
+	if config.EnableHTTPS && (!exists(certFile) || !exists(keyfile)) {
+		if err := generateAndSave(certFile, keyfile); err != nil {
+			logger.Fatal(err.Error())
+		}
+	}
+
+	httpServer := newHTTPServer(config, store, urlRemover, logger)
+
+	grpcServer := newGRPCServer(config, store, urlRemover)
+	tcpListener, err := net.Listen("tcp", ":3200")
+	if err != nil {
+		logger.Fatal(err.Error())
+	}
+
+	go func() {
+		logger.Info("running http server", zap.String(address, config.ServerAddress))
+
+		var err error
+		if config.EnableHTTPS {
+			err = httpServer.ListenAndServeTLS(certFile, keyfile)
+		} else {
+			err = httpServer.ListenAndServe()
+		}
+
+		if err != nil && err != http.ErrServerClosed {
+			logger.Error(err.Error())
+			cancel()
+		}
+	}()
+
+	go func() {
+		logger.Info("running grpc server", zap.String(address, tcpListener.Addr().String()))
+
+		if err := grpcServer.Serve(tcpListener); err != nil {
+			logger.Error(err.Error())
+			cancel()
+		}
+	}()
+
+	go func() {
+		<-ctx.Done()
+
+		if err := httpServer.Shutdown(context.Background()); err != nil {
+			logger.Sugar().Infof("http server shut down: %v", err)
+		}
+
+		close(doneCh)
+	}()
+
+	<-doneCh
+
+	logger.Info("servers shutdown gracefully")
+}
+
+func newGRPCServer(c conf.Config, store domain.URLStore, remover *httpserver.URLRemover) *grpc.Server {
+	s := grpc.NewServer()
+
+	pb.RegisterShortenerServer(s, grpcserver.New(store, c.BaseURL,
+		grpcserver.WithShortenURLsMaxCount(shortenURLsMaxCount),
+		grpcserver.WithURLsRemover(remover)))
+
+	return s
+}
+
+func newHTTPServer(c conf.Config, store domain.URLStore, remover *httpserver.URLRemover, log *zap.Logger) *http.Server {
+	handler := httpserver.New(store, c.BaseURL,
+		httpserver.WithLogger(log),
+		httpserver.WithShortenURLsMaxCount(shortenURLsMaxCount),
+		httpserver.WithURLsRemover(remover),
+		httpserver.WithTrustedSubnet(c.TrustedSubnet))
+
+	return &http.Server{
+		Addr:    c.ServerAddress,
+		Handler: handler,
+	}
 }
 
 func getConfig() conf.Config {
@@ -88,53 +163,6 @@ func getConfigFilePath() string {
 	}
 
 	return path
-}
-
-func runServer(ctx context.Context, config conf.Config, handler *server.Server, log *zap.Logger) {
-	doneCh := make(chan struct{})
-
-	server := &http.Server{
-		Addr:    config.ServerAddress,
-		Handler: handler,
-	}
-
-	go func() {
-		<-ctx.Done()
-
-		if err := server.Shutdown(context.Background()); err != nil {
-			log.Sugar().Infof("HTTP server shut down: %v", err)
-		}
-
-		close(doneCh)
-	}()
-
-	log.Info("running server", zap.String("address", config.ServerAddress))
-	var err error
-
-	if config.EnableHTTPS {
-		const (
-			certFile = "servercert.crt"
-			keyfile  = "servercert.key"
-		)
-
-		if !exists(certFile) || !exists(keyfile) {
-			if err := generateAndSave(certFile, keyfile); err != nil {
-				log.Fatal(err.Error())
-			}
-		}
-
-		err = server.ListenAndServeTLS(certFile, keyfile)
-	} else {
-		err = server.ListenAndServe()
-	}
-
-	if err != nil && err != http.ErrServerClosed {
-		log.Fatal(err.Error(), zap.String(eventKey, "listen and serve"))
-	}
-
-	<-doneCh
-
-	log.Info("server shutdown gracefully")
 }
 
 func generateAndSave(certFile, keyfile string) error {
