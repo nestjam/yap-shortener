@@ -20,10 +20,11 @@ import (
 	conf "github.com/nestjam/yap-shortener/internal/config"
 	env "github.com/nestjam/yap-shortener/internal/config/environment"
 	"github.com/nestjam/yap-shortener/internal/domain"
+	"github.com/nestjam/yap-shortener/internal/domain/service"
 	factory "github.com/nestjam/yap-shortener/internal/factory"
 	"github.com/nestjam/yap-shortener/internal/interceptor"
-	httpserver "github.com/nestjam/yap-shortener/internal/server"
 	grpcserver "github.com/nestjam/yap-shortener/internal/server/grpc"
+	httpserver "github.com/nestjam/yap-shortener/internal/server/http"
 	pb "github.com/nestjam/yap-shortener/proto"
 )
 
@@ -56,7 +57,7 @@ func main() {
 
 	doneCh := make(chan struct{})
 
-	urlRemover := httpserver.NewURLRemover(ctx, doneCh, store, logger)
+	urlRemover := service.NewURLRemover(ctx, doneCh, store, logger)
 
 	if config.EnableHTTPS && (!exists(certFile) || !exists(keyfile)) {
 		if err := generateAndSave(certFile, keyfile); err != nil {
@@ -112,7 +113,7 @@ func main() {
 	logger.Info("servers shutdown gracefully")
 }
 
-func newGRPCServer(c conf.Config, store domain.URLStore, remover *httpserver.URLRemover) *grpc.Server {
+func newGRPCServer(c conf.Config, store domain.URLStore, remover *service.URLRemover) *grpc.Server {
 	userAuth := auth.New(auth.SecretKey, auth.TokenExp)
 	authInterceptor := interceptor.NewAuth(userAuth)
 	s := grpc.NewServer(grpc.UnaryInterceptor(authInterceptor.Handle))
@@ -125,7 +126,7 @@ func newGRPCServer(c conf.Config, store domain.URLStore, remover *httpserver.URL
 	return s
 }
 
-func newHTTPServer(c conf.Config, store domain.URLStore, remover *httpserver.URLRemover, log *zap.Logger) *http.Server {
+func newHTTPServer(c conf.Config, store domain.URLStore, remover *service.URLRemover, log *zap.Logger) *http.Server {
 	handler := httpserver.New(store, c.BaseURL,
 		httpserver.WithLogger(log),
 		httpserver.WithShortenURLsMaxCount(shortenURLsMaxCount),

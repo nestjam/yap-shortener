@@ -17,6 +17,7 @@ import (
 	"github.com/nestjam/yap-shortener/internal/auth"
 	customctx "github.com/nestjam/yap-shortener/internal/context"
 	"github.com/nestjam/yap-shortener/internal/domain"
+	"github.com/nestjam/yap-shortener/internal/domain/service"
 	"github.com/nestjam/yap-shortener/internal/middleware"
 	"github.com/nestjam/yap-shortener/internal/shortener"
 )
@@ -42,7 +43,7 @@ type Server struct {
 	store               domain.URLStore
 	router              chi.Router
 	logger              *zap.Logger
-	urlRemover          *URLRemover
+	urlRemover          *service.URLRemover
 	baseURL             string
 	trustedSubnet       string
 	shortenURLsMaxCount int
@@ -481,7 +482,7 @@ func WithShortenURLsMaxCount(count int) Option {
 }
 
 // WithURLsRemover задает компонент, который выполняет удаление сохраненных URL.
-func WithURLsRemover(remover *URLRemover) Option {
+func WithURLsRemover(remover *service.URLRemover) Option {
 	return func(s *Server) {
 		s.urlRemover = remover
 	}

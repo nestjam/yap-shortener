@@ -11,11 +11,11 @@ import (
 
 	"github.com/nestjam/yap-shortener/internal/auth"
 	"github.com/nestjam/yap-shortener/internal/domain"
-	"github.com/nestjam/yap-shortener/internal/server"
 	"github.com/nestjam/yap-shortener/internal/shortener"
 	pb "github.com/nestjam/yap-shortener/proto"
 
 	customctx "github.com/nestjam/yap-shortener/internal/context"
+	"github.com/nestjam/yap-shortener/internal/domain/service"
 )
 
 const (
@@ -32,7 +32,7 @@ const (
 type Server struct {
 	pb.UnimplementedShortenerServer
 	store               domain.URLStore
-	urlRemover          *server.URLRemover
+	urlRemover          *service.URLRemover
 	userAuth            *auth.UserAuth
 	baseURL             string
 	shortenURLsMaxCount int
@@ -49,7 +49,7 @@ func WithShortenURLsMaxCount(count int) Option {
 }
 
 // WithURLsRemover задает компонент, который выполняет удаление сохраненных ссылок.
-func WithURLsRemover(remover *server.URLRemover) Option {
+func WithURLsRemover(remover *service.URLRemover) Option {
 	return func(s *Server) {
 		s.urlRemover = remover
 	}
