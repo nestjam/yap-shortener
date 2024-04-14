@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"net"
 	"net/http"
 	"strconv"
 
@@ -141,6 +140,8 @@ func New(store domain.URLStore, baseURL string, options ...Option) *Server {
 	})
 
 	r.Group(func(r chi.Router) {
+		r.Use(middleware.TrustedSubnet(s.trustedSubnet))
+
 		r.Get("/api/internal/stats", s.getStats)
 	})
 
@@ -403,25 +404,8 @@ func (s *Server) deleteUserURLs(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) getStats(w http.ResponseWriter, r *http.Request) {
-	if s.trustedSubnet == "" {
-		w.WriteHeader(http.StatusForbidden)
-		return
-	}
-
-	_, ipNet, err := net.ParseCIDR(s.trustedSubnet)
-	if err != nil {
-		internalError(w, failedToParseCIDRMessage)
-		return
-	}
-
-	ip := net.ParseIP(r.Header.Get("X-Real-IP"))
-
-	if !ipNet.Contains(ip) {
-		w.WriteHeader(http.StatusForbidden)
-		return
-	}
-
 	ctx := r.Context()
+	var err error
 	stats := Stats{}
 	stats.URLs, stats.Users, err = s.store.GetURLsAndUsersCount(ctx)
 	if err != nil {
