@@ -73,30 +73,8 @@ func main() {
 		logger.Fatal(err.Error())
 	}
 
-	go func() {
-		logger.Info("running http server", zap.String(address, config.ServerAddress))
-
-		var err error
-		if config.EnableHTTPS {
-			err = httpServer.ListenAndServeTLS(certFile, keyfile)
-		} else {
-			err = httpServer.ListenAndServe()
-		}
-
-		if err != nil && err != http.ErrServerClosed {
-			logger.Error(err.Error())
-			cancel()
-		}
-	}()
-
-	go func() {
-		logger.Info("running grpc server", zap.String(address, tcpListener.Addr().String()))
-
-		if err := grpcServer.Serve(tcpListener); err != nil {
-			logger.Error(err.Error())
-			cancel()
-		}
-	}()
+	go runHTTP(config, httpServer, cancel, logger)
+	go runGRPC(grpcServer, tcpListener, cancel, logger)
 
 	go func() {
 		<-ctx.Done()
@@ -111,6 +89,31 @@ func main() {
 	<-doneCh
 
 	logger.Info("servers shutdown gracefully")
+}
+
+func runHTTP(config conf.Config, server *http.Server, cancel func(), logger *zap.Logger) {
+	logger.Info("running http server", zap.String(address, config.ServerAddress))
+
+	var err error
+	if config.EnableHTTPS {
+		err = server.ListenAndServeTLS(certFile, keyfile)
+	} else {
+		err = server.ListenAndServe()
+	}
+
+	if err != nil && err != http.ErrServerClosed {
+		logger.Error(err.Error())
+		cancel()
+	}
+}
+
+func runGRPC(server *grpc.Server, listener net.Listener, cancel func(), logger *zap.Logger) {
+	logger.Info("running grpc server", zap.String(address, listener.Addr().String()))
+
+	if err := server.Serve(listener); err != nil {
+		logger.Error(err.Error())
+		cancel()
+	}
 }
 
 func newGRPCServer(c conf.Config, store domain.URLStore, remover *service.URLRemover) *grpc.Server {
