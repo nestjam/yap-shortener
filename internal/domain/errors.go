@@ -27,7 +27,11 @@ func NewOriginalURLExistsError(shortURL string, err error) *OriginalURLExistsErr
 
 // Error возвращает текст ошибки.
 func (u *OriginalURLExistsError) Error() string {
-	return fmt.Sprintf("original URL already exists: %v", u.err.Error())
+	const msg = "original URL already exists"
+	if u.err != nil {
+		return fmt.Sprintf("%s: %v", msg, u.err.Error())
+	}
+	return msg
 }
 
 // GetShortURL возвращает сокращенный URL, который был создан ранее.

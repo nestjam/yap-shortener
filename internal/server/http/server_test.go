@@ -610,7 +610,7 @@ func (u URLShortenerTest) Test(t *testing.T) {
 			sut.ServeHTTP(response, request)
 
 			assert.Equal(t, http.StatusForbidden, response.Code)
-			assertBody(t, "to many urls", response)
+			assertBody(t, "too many urls", response)
 		})
 	})
 
@@ -740,6 +740,110 @@ func (u URLShortenerTest) Test(t *testing.T) {
 			assertBody(t, "failed to delete user urls", response)
 		})
 	})
+
+	t.Run("get internal stats", func(t *testing.T) {
+		t.Run("get internal stats from trusted subnet", func(t *testing.T) {
+			ctx := context.Background()
+			userID := domain.NewUserID()
+			userURLs := []domain.URLPair{
+				{
+					OriginalURL: "http://yandex.ru",
+					ShortURL:    "123",
+				},
+				{
+					OriginalURL: "http://mail.ru",
+					ShortURL:    "456",
+				},
+			}
+			want := Stats{
+				URLs:  len(userURLs),
+				Users: 1,
+			}
+			urlStore, cleanup := u.CreateDependencies()
+			t.Cleanup(cleanup)
+			err := urlStore.AddURLs(ctx, userURLs, userID)
+			require.NoError(t, err)
+			sut := New(urlStore, baseURL, WithTrustedSubnet("127.0.0.0/24"))
+			const ip = "127.0.0.1"
+			request := newGetInternalStatRequest(t, ip)
+			response := httptest.NewRecorder()
+
+			sut.ServeHTTP(response, request)
+
+			require.Equal(t, http.StatusOK, response.Code)
+			assertStats(t, want, response.Body)
+		})
+
+		t.Run("trusted subnet is not set", func(t *testing.T) {
+			urlStore, cleanup := u.CreateDependencies()
+			t.Cleanup(cleanup)
+			sut := New(urlStore, baseURL, WithTrustedSubnet(""))
+			const ip = "127.0.0.1"
+			request := newGetInternalStatRequest(t, ip)
+			response := httptest.NewRecorder()
+
+			sut.ServeHTTP(response, request)
+
+			assert.Equal(t, http.StatusForbidden, response.Code)
+		})
+
+		t.Run("client ip does not belong to trusted subnet", func(t *testing.T) {
+			urlStore, cleanup := u.CreateDependencies()
+			t.Cleanup(cleanup)
+			sut := New(urlStore, baseURL, WithTrustedSubnet("127.0.0.0/24"))
+			const ip = "150.172.238.178"
+			request := newGetInternalStatRequest(t, ip)
+			response := httptest.NewRecorder()
+
+			sut.ServeHTTP(response, request)
+
+			assert.Equal(t, http.StatusForbidden, response.Code)
+		})
+
+		t.Run("trusted subnet address is invalid", func(t *testing.T) {
+			urlStore, cleanup := u.CreateDependencies()
+			t.Cleanup(cleanup)
+			sut := New(urlStore, baseURL, WithTrustedSubnet("12700.0.0.0/24"))
+			const ip = "127.0.0.3"
+			request := newGetInternalStatRequest(t, ip)
+			response := httptest.NewRecorder()
+
+			sut.ServeHTTP(response, request)
+
+			assert.Equal(t, http.StatusInternalServerError, response.Code)
+		})
+
+		t.Run("x-real-ip is invalid", func(t *testing.T) {
+			urlStore, cleanup := u.CreateDependencies()
+			t.Cleanup(cleanup)
+			sut := New(urlStore, baseURL, WithTrustedSubnet("127.0.0.0/24"))
+			const ip = "12700.0.0.3"
+			request := newGetInternalStatRequest(t, ip)
+			response := httptest.NewRecorder()
+
+			sut.ServeHTTP(response, request)
+
+			assert.Equal(t, http.StatusForbidden, response.Code)
+		})
+
+		t.Run("store failed to execute query", func(t *testing.T) {
+			urlStore, cleanup := u.CreateDependencies()
+			t.Cleanup(cleanup)
+			failingURLStore := domain.NewURLStoreDelegate(urlStore)
+			failingURLStore.GetURLsAndUsersCountFunc = func(ctx context.Context) (urlsCount, usersCount int, err error) {
+				err = errors.New("failed to execute query")
+				return
+			}
+			sut := New(failingURLStore, baseURL, WithTrustedSubnet("127.0.0.0/24"))
+			const ip = "127.0.0.4"
+			request := newGetInternalStatRequest(t, ip)
+			response := httptest.NewRecorder()
+
+			sut.ServeHTTP(response, request)
+
+			assert.Equal(t, http.StatusInternalServerError, response.Code)
+		})
+	})
 }
 
 func assertUserURLs(t *testing.T, want []domain.URLPair, r io.Reader) {
@@ -750,7 +854,7 @@ func assertUserURLs(t *testing.T, want []domain.URLPair, r io.Reader) {
 	require.NoError(t, err, "unable to parse response from server: %v", err)
 
 	urls := make([]UserURL, len(want))
-	for i := 0; i < len(got); i++ {
+	for i := 0; i < len(want); i++ {
 		urls[i].OriginalURL = want[i].OriginalURL
 		urls[i].ShortURL = baseURL + "/" + want[i].ShortURL
 	}
@@ -776,6 +880,16 @@ func assertShortURLs(t *testing.T, req []OriginalURL, r io.Reader, store domain.
 
 		assert.Equal(t, got, req[i].URL)
 	}
+}
+
+func assertStats(t *testing.T, want Stats, r io.Reader) {
+	t.Helper()
+
+	var got Stats
+	err := json.NewDecoder(r).Decode(&got)
+	require.NoError(t, err, "unable to parse response from server: %v", err)
+
+	assert.Equal(t, want, got)
 }
 
 func newBatch(urls []string) []OriginalURL {
@@ -875,7 +989,7 @@ func newPutRequest(url string) *http.Request {
 func newGetUserURLsRequest(t *testing.T, userID domain.UserID) *http.Request {
 	t.Helper()
 	r := httptest.NewRequest(http.MethodGet, userURLsPath, nil)
-	a := auth.New(secretKey, tokenExp)
+	a := auth.New(auth.SecretKey, auth.TokenExp)
 
 	cookie, err := a.CreateCookie(userID)
 	require.NoError(t, err)
@@ -897,7 +1011,7 @@ func newDeleteUserURLsRequest(t *testing.T, userURLs []domain.URLPair, userID do
 	buf := bytes.NewBuffer(body)
 	r := httptest.NewRequest(http.MethodDelete, userURLsPath, buf)
 	r.Header.Set(contentTypeHeader, applicationJSON)
-	a := auth.New(secretKey, tokenExp)
+	a := auth.New(auth.SecretKey, auth.TokenExp)
 
 	cookie, err := a.CreateCookie(userID)
 	require.NoError(t, err)
@@ -912,12 +1026,20 @@ func newDeleteUserURLsInvalidRequest(t *testing.T, userID domain.UserID) *http.R
 	buf := bytes.NewBufferString("[{ Invalid: true ]}")
 	r := httptest.NewRequest(http.MethodDelete, userURLsPath, buf)
 	r.Header.Set(contentTypeHeader, applicationJSON)
-	a := auth.New(secretKey, tokenExp)
+	a := auth.New(auth.SecretKey, auth.TokenExp)
 
 	cookie, err := a.CreateCookie(userID)
 	require.NoError(t, err)
 
 	r.AddCookie(cookie)
+	return r
+}
+
+func newGetInternalStatRequest(t *testing.T, ip string) *http.Request {
+	t.Helper()
+
+	r := httptest.NewRequest(http.MethodGet, "/api/internal/stats", nil)
+	r.Header.Set("X-Real-IP", ip)
 	return r
 }
 

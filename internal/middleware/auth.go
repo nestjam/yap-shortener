@@ -13,7 +13,7 @@ import (
 // Auth возвращает посредника, который добавляет в контекст запроса данные для аутентификации пользователя.
 func Auth(a *auth.UserAuth) func(h http.Handler) http.Handler {
 	return func(h http.Handler) http.Handler {
-		log := func(w http.ResponseWriter, r *http.Request) {
+		f := func(w http.ResponseWriter, r *http.Request) {
 			userID, isNew := createOrGetUserID(r, a)
 
 			if isNew {
@@ -29,7 +29,7 @@ func Auth(a *auth.UserAuth) func(h http.Handler) http.Handler {
 			user := customctx.NewUser(userID, isNew)
 			h.ServeHTTP(w, r.WithContext(customctx.SetUser(ctx, user)))
 		}
-		return http.HandlerFunc(log)
+		return http.HandlerFunc(f)
 	}
 }
 

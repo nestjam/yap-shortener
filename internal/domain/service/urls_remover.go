@@ -1,12 +1,11 @@
-package server
+package service
 
 import (
 	"context"
 	"errors"
 
-	"go.uber.org/zap"
-
 	"github.com/nestjam/yap-shortener/internal/domain"
+	"go.uber.org/zap"
 )
 
 type deletingURLs struct {

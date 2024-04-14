@@ -8,13 +8,14 @@ import (
 // A URLStoreDelegate allows to extend the behavior of the test double for negative scenarios
 // for URLStore consumers.
 type URLStoreDelegate struct {
-	GetOriginalURLFunc func(ctx context.Context, shortURL string) (string, error)
-	AddURLFunc         func(ctx context.Context, pair URLPair, userID UserID) error
-	AddURLsFunc        func(ctx context.Context, pairs []URLPair, userID UserID) error
-	IsAvailableFunc    func(ctx context.Context) bool
-	GetUserURLsFunc    func(ctx context.Context, userID UserID) ([]URLPair, error)
-	DeleteUserURLsFunc func(ctx context.Context, shortURLs []string, userID UserID) error
-	delegate           URLStore
+	GetOriginalURLFunc       func(ctx context.Context, shortURL string) (string, error)
+	AddURLFunc               func(ctx context.Context, pair URLPair, userID UserID) error
+	AddURLsFunc              func(ctx context.Context, pairs []URLPair, userID UserID) error
+	IsAvailableFunc          func(ctx context.Context) bool
+	GetUserURLsFunc          func(ctx context.Context, userID UserID) ([]URLPair, error)
+	DeleteUserURLsFunc       func(ctx context.Context, shortURLs []string, userID UserID) error
+	GetURLsAndUsersCountFunc func(ctx context.Context) (urlsCount, usersCount int, err error)
+	delegate                 URLStore
 }
 
 // NewURLStoreDelegate создает вспомогательный компонент URLStoreDelegate.
@@ -103,4 +104,18 @@ func (u *URLStoreDelegate) DeleteUserURLs(ctx context.Context, shortURLs []strin
 	}
 
 	return nil
+}
+
+// GetURLsAndUsersCount возвращает количество сокращенных ссылок и пользователей.
+func (u *URLStoreDelegate) GetURLsAndUsersCount(ctx context.Context) (urlsCount, usersCount int, err error) {
+	if u.GetURLsAndUsersCountFunc != nil {
+		return u.GetURLsAndUsersCountFunc(ctx)
+	}
+	urlsCount, usersCount, err = u.delegate.GetURLsAndUsersCount(ctx)
+
+	if err != nil {
+		err = fmt.Errorf("get urls and users count from store delegate: %w", err)
+	}
+
+	return
 }

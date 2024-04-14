@@ -1,0 +1,78 @@
+syntax = "proto3";
+
+package shortener;
+
+option go_package = "github.com/nestjam/yap-shortener/proto/gen/shortener";
+
+message PingRequest {}
+
+message PingResponse {
+  bool result = 1;
+}
+
+message GetOriginalURLRequest {
+  string Key = 1;
+}
+
+message GetOriginalURLResponse {
+  string OriginalURL = 1;
+}
+
+message ShortenURLRequest {
+  string URL = 1;
+}
+
+message ShortenURLResponse {
+  string ShortenedURL = 1;
+}
+
+message CorrelatedURL {
+  string URL = 1;
+  string CorrelationID = 2;
+}
+
+message ShortenURLsRequest {
+  repeated CorrelatedURL URLs = 1;
+}
+
+message ShortenURLsResponse {
+  repeated CorrelatedURL URLs = 1;
+}
+
+message UserURL {
+  string ShortenedURL = 1;
+  string OriginalURL = 2;
+}
+
+message GetUserURLsRequest {
+}
+
+message GetUserURLsResponse {
+  repeated UserURL URLs = 1;
+}
+
+message DeleteUserURLsRequest {
+  repeated string Keys = 1;
+}
+
+message DeleteUserURLsResponse {
+}
+
+message LoginRequest {
+  string Username = 1;
+  string Password = 2;
+}
+
+message LoginResponse {
+  string Token = 1;
+}
+
+service Shortener {
+  rpc Login(LoginRequest) returns (LoginResponse);
+  rpc Ping(PingRequest) returns (PingResponse);
+  rpc GetOriginalURL(GetOriginalURLRequest) returns (GetOriginalURLResponse);
+  rpc ShortenURL(ShortenURLRequest) returns (ShortenURLResponse);
+  rpc ShortenURLs(ShortenURLsRequest) returns (ShortenURLsResponse);
+  rpc GetUserURLs(GetUserURLsRequest) returns (GetUserURLsResponse);
+  rpc GetDeleteUserURLs(DeleteUserURLsRequest) returns (DeleteUserURLsResponse);
+}
