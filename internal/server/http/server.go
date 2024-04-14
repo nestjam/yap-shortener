@@ -10,7 +10,6 @@ import (
 
 	chimiddleware "github.com/go-chi/chi/middleware"
 	"github.com/go-chi/chi/v5"
-	"github.com/google/uuid"
 	"go.uber.org/zap"
 
 	"github.com/nestjam/yap-shortener/internal/auth"
@@ -18,7 +17,6 @@ import (
 	"github.com/nestjam/yap-shortener/internal/domain"
 	"github.com/nestjam/yap-shortener/internal/domain/service"
 	"github.com/nestjam/yap-shortener/internal/middleware"
-	"github.com/nestjam/yap-shortener/internal/shortener"
 )
 
 const (
@@ -28,21 +26,22 @@ const (
 	textPlain                      = "text/plain"
 	applicationJSON                = "application/json"
 	applicationGZIP                = "application/x-gzip"
-	urlIsEmptyMessage              = "url is empty"
 	batchIsEmptyMessage            = "batch is empty"
 	failedToWriteResponseMessage   = "failed to write response"
 	failedToStoreURLMessage        = "failed to store url"
 	failedToParseRequestMessage    = "failed to parse request"
 	failedToPrepareResponseMessage = "failed to prepare response"
 	failedToParseCIDRMessage       = "failed to parse trusted subnet address"
+	originalURLNotFoundMessage     = "not found"
+	urlIsEmptyMessage              = "url is empty"
 )
 
 // Server предоставляет возможность сокращать URL, получать исходный и управлять сокращенными URL.
 type Server struct {
+	service             *service.ShortenerService
 	store               domain.URLStore
 	router              chi.Router
 	logger              *zap.Logger
-	urlRemover          *service.URLRemover
 	baseURL             string
 	trustedSubnet       string
 	shortenURLsMaxCount int
@@ -89,6 +88,7 @@ type Option func(*Server)
 func New(store domain.URLStore, baseURL string, options ...Option) *Server {
 	r := chi.NewRouter()
 	s := &Server{
+		service: service.New(store),
 		store:   store,
 		router:  r,
 		baseURL: baseURL,
@@ -156,13 +156,12 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 func (s *Server) redirect(w http.ResponseWriter, r *http.Request) {
 	key := chi.URLParam(r, "key")
 	ctx := r.Context()
-	url, err := s.store.GetOriginalURL(ctx, key)
+	url, err := s.service.GetOriginalURL(ctx, key)
 
 	if errors.Is(err, domain.ErrOriginalURLNotFound) {
-		notFound(w, err.Error())
+		notFound(w, originalURLNotFoundMessage)
 		return
 	}
-
 	if errors.Is(err, domain.ErrOriginalURLIsDeleted) {
 		http.Error(w, "url is deleted", http.StatusGone)
 		return
@@ -174,26 +173,19 @@ func (s *Server) redirect(w http.ResponseWriter, r *http.Request) {
 func (s *Server) shorten(w http.ResponseWriter, r *http.Request) {
 	body, err := io.ReadAll(r.Body)
 	_ = r.Body.Close()
-
 	if err != nil {
 		badRequest(w, err.Error())
 		return
 	}
 
-	if len(body) == 0 {
+	ctx := r.Context()
+	user, _ := customctx.GetUser(ctx)
+	originalURL := string(body)
+	shortenedURL, err := s.service.ShortenURL(ctx, originalURL, user.ID)
+	if errors.Is(err, service.ErrURLIsEmpty) {
 		badRequest(w, urlIsEmptyMessage)
 		return
 	}
-
-	ctx := r.Context()
-	user, _ := customctx.GetUser(ctx)
-	shortURL := shortener.Shorten(uuid.New().ID())
-	pair := domain.URLPair{
-		ShortURL:    shortURL,
-		OriginalURL: string(body),
-	}
-	err = s.store.AddURL(ctx, pair, user.ID)
-
 	var originalURLAlreadyExists *domain.OriginalURLExistsError
 	if err != nil && !errors.As(err, &originalURLAlreadyExists) {
 		internalError(w, failedToStoreURLMessage)
@@ -203,12 +195,12 @@ func (s *Server) shorten(w http.ResponseWriter, r *http.Request) {
 	status := http.StatusCreated
 	if originalURLAlreadyExists != nil {
 		status = http.StatusConflict
-		shortURL = originalURLAlreadyExists.GetShortURL()
+		shortenedURL = originalURLAlreadyExists.GetShortURL()
 	}
+
 	w.Header().Set(contentTypeHeader, textPlain)
 	w.WriteHeader(status)
-	_, err = w.Write([]byte(joinPath(s.baseURL, shortURL)))
-
+	_, err = w.Write([]byte(joinPath(s.baseURL, shortenedURL)))
 	if err != nil {
 		internalError(w, failedToWriteResponseMessage)
 		return
@@ -219,26 +211,19 @@ func (s *Server) shortenAPI(w http.ResponseWriter, r *http.Request) {
 	var req ShortenRequest
 	decoder := json.NewDecoder(r.Body)
 	err := decoder.Decode(&req)
-
 	if err != nil {
 		badRequest(w, failedToParseRequestMessage)
 		return
 	}
 
-	if len(req.URL) == 0 {
+	ctx := r.Context()
+	user, _ := customctx.GetUser(ctx)
+	originalURL := req.URL
+	shortenedURL, err := s.service.ShortenURL(ctx, originalURL, user.ID)
+	if errors.Is(err, service.ErrURLIsEmpty) {
 		badRequest(w, urlIsEmptyMessage)
 		return
 	}
-
-	ctx := r.Context()
-	user, _ := customctx.GetUser(ctx)
-	shortURL := shortener.Shorten(uuid.New().ID())
-	pair := domain.URLPair{
-		ShortURL:    shortURL,
-		OriginalURL: req.URL,
-	}
-	err = s.store.AddURL(ctx, pair, user.ID)
-
 	var originalURLAlreadyExists *domain.OriginalURLExistsError
 	if err != nil && !errors.As(err, &originalURLAlreadyExists) {
 		internalError(w, failedToStoreURLMessage)
@@ -248,12 +233,11 @@ func (s *Server) shortenAPI(w http.ResponseWriter, r *http.Request) {
 	status := http.StatusCreated
 	if originalURLAlreadyExists != nil {
 		status = http.StatusConflict
-		shortURL = originalURLAlreadyExists.GetShortURL()
+		shortenedURL = originalURLAlreadyExists.GetShortURL()
 	}
 
-	resp := ShortenResponse{Result: joinPath(s.baseURL, shortURL)}
+	resp := ShortenResponse{Result: joinPath(s.baseURL, shortenedURL)}
 	content, err := json.Marshal(resp)
-
 	if err != nil {
 		internalError(w, failedToPrepareResponseMessage)
 		return
@@ -263,7 +247,6 @@ func (s *Server) shortenAPI(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set(contentLengthHeader, strconv.Itoa(len(content)))
 	w.WriteHeader(status)
 	_, err = w.Write(content)
-
 	if err != nil {
 		internalError(w, failedToWriteResponseMessage)
 		return
@@ -273,7 +256,7 @@ func (s *Server) shortenAPI(w http.ResponseWriter, r *http.Request) {
 func (s *Server) ping(w http.ResponseWriter, r *http.Request) {
 	status := http.StatusInternalServerError
 	ctx := r.Context()
-	if s.store.IsAvailable(ctx) {
+	if s.service.IsAvailable(ctx) {
 		status = http.StatusOK
 	}
 	w.WriteHeader(status)
@@ -283,7 +266,6 @@ func (s *Server) shortenURLs(w http.ResponseWriter, r *http.Request) {
 	var req []OriginalURL
 	decoder := json.NewDecoder(r.Body)
 	err := decoder.Decode(&req)
-
 	if err != nil {
 		badRequest(w, failedToParseRequestMessage)
 		return
@@ -293,29 +275,22 @@ func (s *Server) shortenURLs(w http.ResponseWriter, r *http.Request) {
 		badRequest(w, batchIsEmptyMessage)
 		return
 	}
-
 	if isTooManyURLs(req, s.shortenURLsMaxCount) {
 		forbidden(w)
 		return
 	}
 
-	urlPairs := make([]domain.URLPair, len(req))
-	for i := 0; i < len(req); i++ {
-		if len(req[i].URL) == 0 {
-			badRequest(w, urlIsEmptyMessage)
-			return
-		}
-
-		urlPairs[i] = domain.URLPair{
-			ShortURL:    shortener.Shorten(uuid.New().ID()),
-			OriginalURL: req[i].URL,
-		}
-	}
-
 	ctx := r.Context()
 	user, _ := customctx.GetUser(ctx)
-	err = s.store.AddURLs(ctx, urlPairs, user.ID)
-
+	urls := make([]string, len(req))
+	for i := 0; i < len(req); i++ {
+		urls[i] = req[i].URL
+	}
+	urlPairs, err := s.service.ShortenURLs(ctx, urls, user.ID)
+	if errors.Is(err, service.ErrURLIsEmpty) {
+		badRequest(w, urlIsEmptyMessage)
+		return
+	}
 	if err != nil {
 		internalError(w, failedToStoreURLMessage)
 		return
@@ -329,7 +304,6 @@ func (s *Server) shortenURLs(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	content, err := json.Marshal(resp)
-
 	if err != nil {
 		internalError(w, failedToPrepareResponseMessage)
 		return
@@ -339,7 +313,6 @@ func (s *Server) shortenURLs(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set(contentLengthHeader, strconv.Itoa(len(content)))
 	w.WriteHeader(http.StatusCreated)
 	_, err = w.Write(content)
-
 	if err != nil {
 		internalError(w, failedToWriteResponseMessage)
 		return
@@ -349,13 +322,12 @@ func (s *Server) shortenURLs(w http.ResponseWriter, r *http.Request) {
 func (s *Server) getUserURLs(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	user, _ := customctx.GetUser(ctx)
-
 	if user.IsNew {
 		http.Error(w, "unauthorized", http.StatusUnauthorized)
 		return
 	}
 
-	urlPairs, _ := s.store.GetUserURLs(ctx, user.ID)
+	urlPairs, _ := s.service.GetUserURLs(ctx, user.ID)
 
 	if len(urlPairs) == 0 {
 		http.Error(w, "no urls", http.StatusNoContent)
@@ -377,24 +349,17 @@ func (s *Server) getUserURLs(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) deleteUserURLs(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	user, _ := customctx.GetUser(ctx)
-
 	var shortURLs []string
 	decoder := json.NewDecoder(r.Body)
 	err := decoder.Decode(&shortURLs)
-
 	if err != nil {
 		badRequest(w, failedToParseRequestMessage)
 		return
 	}
 
-	if s.urlRemover != nil {
-		err = s.urlRemover.DeleteURLs(shortURLs, user.ID)
-	} else {
-		err = s.store.DeleteUserURLs(ctx, shortURLs, user.ID)
-	}
-
+	ctx := r.Context()
+	user, _ := customctx.GetUser(ctx)
+	err = s.service.DeleteUserURLs(ctx, shortURLs, user.ID)
 	if err != nil {
 		internalError(w, "failed to delete user urls")
 		return
@@ -468,7 +433,7 @@ func WithShortenURLsMaxCount(count int) Option {
 // WithURLsRemover задает компонент, который выполняет удаление сохраненных URL.
 func WithURLsRemover(remover *service.URLRemover) Option {
 	return func(s *Server) {
-		s.urlRemover = remover
+		s.service.SetURLRemover(remover)
 	}
 }
 

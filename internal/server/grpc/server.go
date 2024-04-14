@@ -4,14 +4,12 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/google/uuid"
 	"github.com/pkg/errors"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
 	"github.com/nestjam/yap-shortener/internal/auth"
 	"github.com/nestjam/yap-shortener/internal/domain"
-	"github.com/nestjam/yap-shortener/internal/shortener"
 	pb "github.com/nestjam/yap-shortener/proto"
 
 	customctx "github.com/nestjam/yap-shortener/internal/context"
@@ -19,7 +17,6 @@ import (
 )
 
 const (
-	urlIsEmptyMessage         = "url is empty"
 	batchIsEmptyMessage       = "batch is empty"
 	failedToStoreURLMessage   = "failed to store url"
 	failedToGetURLsMessage    = "failed to get urls"
@@ -31,8 +28,7 @@ const (
 // Server предоставляет возможность сокращать ссылку, получать исходную и управлять ссылку.
 type Server struct {
 	pb.UnimplementedShortenerServer
-	store               domain.URLStore
-	urlRemover          *service.URLRemover
+	service             *service.ShortenerService
 	userAuth            *auth.UserAuth
 	baseURL             string
 	shortenURLsMaxCount int
@@ -51,14 +47,14 @@ func WithShortenURLsMaxCount(count int) Option {
 // WithURLsRemover задает компонент, который выполняет удаление сохраненных ссылок.
 func WithURLsRemover(remover *service.URLRemover) Option {
 	return func(s *Server) {
-		s.urlRemover = remover
+		s.service.SetURLRemover(remover)
 	}
 }
 
 // New создает сервер. Конструктор принимает на вход хранилище ссылок, базовую ссылку и набор опций.
 func New(store domain.URLStore, baseURL string, options ...Option) *Server {
 	s := &Server{
-		store:    store,
+		service:  service.New(store),
 		baseURL:  baseURL,
 		userAuth: auth.New(auth.SecretKey, auth.TokenExp),
 	}
@@ -86,7 +82,7 @@ func (s *Server) Login(ctx context.Context, request *pb.LoginRequest) (*pb.Login
 // Ping проверяет доступность сервиса.
 func (s *Server) Ping(ctx context.Context, request *pb.PingRequest) (*pb.PingResponse, error) {
 	response := &pb.PingResponse{
-		Result: s.store.IsAvailable(ctx),
+		Result: s.service.IsAvailable(ctx),
 	}
 	return response, nil
 }
@@ -96,7 +92,7 @@ func (s *Server) Ping(ctx context.Context, request *pb.PingRequest) (*pb.PingRes
 //nolint:lll // naturally long name
 func (s *Server) GetOriginalURL(ctx context.Context, request *pb.GetOriginalURLRequest) (*pb.GetOriginalURLResponse, error) {
 	const op = "get original url"
-	url, err := s.store.GetOriginalURL(ctx, request.Key)
+	url, err := s.service.GetOriginalURL(ctx, request.Key)
 
 	if errors.Is(err, domain.ErrOriginalURLNotFound) ||
 		errors.Is(err, domain.ErrOriginalURLIsDeleted) {
@@ -112,19 +108,12 @@ func (s *Server) GetOriginalURL(ctx context.Context, request *pb.GetOriginalURLR
 // ShortenURL возвращает сокращенную ссылку.
 func (s *Server) ShortenURL(ctx context.Context, request *pb.ShortenURLRequest) (*pb.ShortenURLResponse, error) {
 	const op = "shorten url"
-
-	if len(request.URL) == 0 {
-		return nil, errors.Wrap(status.Error(codes.InvalidArgument, urlIsEmptyMessage), op)
-	}
-
 	user, _ := customctx.GetUser(ctx)
-	shortURL := shortener.Shorten(uuid.New().ID())
-	pair := domain.URLPair{
-		ShortURL:    shortURL,
-		OriginalURL: request.URL,
-	}
-	err := s.store.AddURL(ctx, pair, user.ID)
+	shortenedURL, err := s.service.ShortenURL(ctx, request.URL, user.ID)
 
+	if errors.Is(err, service.ErrURLIsEmpty) {
+		return nil, errors.Wrap(status.Error(codes.InvalidArgument, err.Error()), op)
+	}
 	var originalURLAlreadyExists *domain.OriginalURLExistsError
 	if err != nil && !errors.As(err, &originalURLAlreadyExists) {
 		return nil, errors.Wrap(status.Error(codes.Internal, failedToStoreURLMessage), op)
@@ -138,7 +127,7 @@ func (s *Server) ShortenURL(ctx context.Context, request *pb.ShortenURLRequest) 
 	}
 
 	response := &pb.ShortenURLResponse{
-		ShortenedURL: shortURL,
+		ShortenedURL: shortenedURL,
 	}
 	return response, nil
 }
@@ -150,28 +139,19 @@ func (s *Server) ShortenURLs(ctx context.Context, request *pb.ShortenURLsRequest
 	if len(request.URLs) == 0 {
 		return nil, errors.Wrap(status.Error(codes.InvalidArgument, batchIsEmptyMessage), op)
 	}
-
 	if isTooManyURLs(request.URLs, s.shortenURLsMaxCount) {
 		return nil, errors.Wrap(status.Error(codes.InvalidArgument, tooManyURLsMessage), op)
 	}
 
-	urlPairs := make([]domain.URLPair, len(request.URLs))
-	for i := 0; i < len(request.URLs); i++ {
-		originalURL := request.URLs[i].URL
-
-		if len(originalURL) == 0 {
-			return nil, errors.Wrap(status.Error(codes.InvalidArgument, urlIsEmptyMessage), op)
-		}
-
-		urlPairs[i] = domain.URLPair{
-			ShortURL:    shortener.Shorten(uuid.New().ID()),
-			OriginalURL: originalURL,
-		}
-	}
-
 	user, _ := customctx.GetUser(ctx)
-	err := s.store.AddURLs(ctx, urlPairs, user.ID)
-
+	urls := make([]string, len(request.URLs))
+	for i := 0; i < len(request.URLs); i++ {
+		urls[i] = request.URLs[i].URL
+	}
+	urlPairs, err := s.service.ShortenURLs(ctx, urls, user.ID)
+	if errors.Is(err, service.ErrURLIsEmpty) {
+		return nil, errors.Wrap(status.Error(codes.InvalidArgument, err.Error()), op)
+	}
 	if err != nil {
 		return nil, errors.Wrap(status.Error(codes.Internal, failedToStoreURLMessage), op)
 	}
@@ -197,7 +177,7 @@ func (s *Server) GetUserURLs(ctx context.Context, request *pb.GetUserURLsRequest
 		return nil, errors.Wrap(status.Error(codes.PermissionDenied, unauthorizedMessage), op)
 	}
 
-	urlPairs, err := s.store.GetUserURLs(ctx, user.ID)
+	urlPairs, err := s.service.GetUserURLs(ctx, user.ID)
 	if err != nil {
 		return nil, errors.Wrap(status.Error(codes.Internal, failedToGetURLsMessage), op)
 	}
@@ -223,13 +203,7 @@ func (s *Server) GetDeleteUserURLs(ctx context.Context, request *pb.DeleteUserUR
 	const op = "delete user urls"
 
 	user, _ := customctx.GetUser(ctx)
-
-	var err error
-	if s.urlRemover != nil {
-		err = s.urlRemover.DeleteURLs(request.Keys, user.ID)
-	} else {
-		err = s.store.DeleteUserURLs(ctx, request.Keys, user.ID)
-	}
+	err := s.service.DeleteUserURLs(ctx, request.Keys, user.ID)
 	if err != nil {
 		return nil, errors.Wrap(status.Error(codes.Internal, failedToDeleteURLsMessage), op)
 	}
